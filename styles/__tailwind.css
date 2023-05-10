@@ -1,0 +1,149 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+@layer utilities {
+    .theme {
+        &-padding {
+            @apply px-small sm:px-large py-4 sm:py-12;
+
+            &-card {
+                @apply py-4 px-8 sm:px-12 sm:py-8;
+            }
+            &-card-body {
+                @apply py-4 sm:py-8;
+            }
+            &-x {
+                @apply px-small sm:px-large;
+            }
+            &-y {
+                @apply py-small sm:py-large;
+            }
+            &-l {
+                @apply pl-small sm:pl-large;
+            }
+            &-r {
+                @apply pr-small sm:pr-large;
+            }
+        }
+        &-margin {
+            &-x {
+                @apply mx-small sm:mx-large;
+            }
+            &-y {
+                @apply my-small sm:my-large;
+            }
+        }
+        &-text- {
+            @apply font-poppins;
+            &gradient {
+                @apply bg-clip-text text-transparent bg-gradient-to-r from-accent to-primary;
+            }
+
+            &p {
+                @apply text-p leading-p;
+            }
+            &h1 {
+                @apply theme-text- font-semibold;
+                @apply text-h1-small ss:text-h1-large;
+                @apply leading-h1-small ss:leading-h1-large;
+            }
+            &h2 {
+                @apply theme-text- font-semibold;
+                @apply text-h2-small ss:text-h2-large;
+                @apply leading-h2-small ss:leading-h2-large;
+            }
+            &h3 {
+                @apply theme-text- font-semibold;
+                @apply text-h3-small ss:text-h3-large;
+                @apply leading-h3-small ss:leading-h3-large;
+            }
+            &h4 {
+                @apply theme-text- font-semibold;
+                @apply text-h4;
+                @apply leading-h4;
+            }
+        }
+        &-box-width {
+            @apply xl:max-w-[1280px] w-full;
+        }
+    }
+
+    .col {
+        @apply flex flex-row;
+        &-start {
+            @apply col justify-start items-start;
+            &-center {
+                @apply col items-start justify-center;
+            }
+            &-end {
+                @apply col items-start justify-end;
+            }
+            &-between {
+                @apply col items-start justify-between;
+            }
+        }
+        &-center {
+            @apply col justify-center items-center;
+            &-start {
+                @apply col items-center justify-start;
+            }
+            &-end {
+                @apply col items-center justify-end;
+            }
+            &-between {
+                @apply col items-center justify-between;
+            }
+        }
+        &-stretch {
+            @apply col justify-center items-stretch;
+            &-start {
+                @apply col items-stretch justify-start;
+            }
+            &-center {
+                @apply col items-stretch justify-center;
+            }
+            &-end {
+                @apply col items-stretch justify-end;
+            }
+        }
+        &-end {
+            @apply flex flex-row justify-end items-end;
+            &-start {
+                @apply col items-end justify-start;
+            }
+            &-center {
+                @apply col items-end justify-center;
+            }
+        }
+    }
+    .row {
+        @apply flex flex-col;
+        &-start {
+            @apply row justify-start items-start;
+            &-center {
+                @apply row justify-start items-center;
+            }
+            &-end {
+                @apply row justify-start items-end;
+            }
+        }
+        &-center {
+            @apply row justify-center items-center;
+            &-start {
+                @apply row justify-center items-start;
+            }
+            &-end {
+                @apply row justify-center items-end;
+            }
+        }
+        &-end {
+            @apply row justify-end items-end;
+            &-start {
+                @apply row justify-end items-start;
+            }
+            &-center {
+                @apply row justify-end items-center;
+            }
+        }
+    }
+}

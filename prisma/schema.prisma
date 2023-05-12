@@ -10,9 +10,26 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Kit {
+  id         String @id @default(auto()) @map("_id") @db.ObjectId
+  short_Id   String @unique
+  created_by String
+  items      String[]
+}
+
+model Item {
+  id                  String   @id @default(auto()) @map("_id") @db.ObjectId
+  short_Id            String   @unique
+  name                String   @unique
+  quantity            Int      @default(1)
+  note                String
+  last_checked_out_by String
+  last_checked_out_at DateTime @default(now())
+}
+
 model User {
-  id String @id @default(auto()) @map("_id") @db.ObjectId
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
   username String @unique
-  auth_ID  String  @unique
+  auth_ID  String @unique
   password String
 }

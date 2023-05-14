@@ -10,18 +10,28 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Category {
+  GENERAL
+  GARDENING
+  HEAVY_EQUIPMENT
+  TOOL
+  WINTER
+  SUMMER
+}
+
 model Kit {
-  id         String @id @default(auto()) @map("_id") @db.ObjectId
-  short_Id   String @unique
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  shortId    String   @unique
   created_by String
-  items      String[]
+  itemIds    String[] @db.ObjectId
 }
 
 model Item {
   id                  String   @id @default(auto()) @map("_id") @db.ObjectId
-  short_Id            String   @unique
+  shortId             String   @unique
   name                String   @unique
   quantity            Int      @default(1)
+  category            Category
   note                String
   last_checked_out_by String
   last_checked_out_at DateTime @default(now())
@@ -30,6 +40,6 @@ model Item {
 model User {
   id       String @id @default(auto()) @map("_id") @db.ObjectId
   username String @unique
-  auth_ID  String @unique
+  authId   String @unique
   password String
 }

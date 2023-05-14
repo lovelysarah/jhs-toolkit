@@ -5,7 +5,7 @@ type NavbarLink = {
     href: string;
 };
 const navbarLinks: NavbarLink[] = [
-    { title: "Shed Inventory", href: "/manage/shed" },
+    { title: "Shed Inventory", href: "/shed/summary" },
     {
         title: "Guidelines",
         href: "/guidelines",
@@ -25,7 +25,9 @@ export default function AppLayoutRoute() {
                         </Link>
                         <ul className="flex gap-10">
                             {navbarLinks.map((link) => (
-                                <li className="hover:underline">
+                                <li
+                                    className="hover:underline"
+                                    key={link.href}>
                                     <Link to={link.href}>{link.title}</Link>
                                 </li>
                             ))}

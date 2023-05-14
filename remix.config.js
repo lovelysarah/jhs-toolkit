@@ -4,7 +4,7 @@ module.exports = {
     // appDirectory: "app",
     // assetsBuildDirectory: "public/build",
     // serverBuildPath: "build/index.js",
-    // postcss: true,
+    postcss: true,
     // publicPath: "/build/",
     serverModuleFormat: "cjs",
     future: {

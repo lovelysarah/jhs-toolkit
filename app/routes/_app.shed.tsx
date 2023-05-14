@@ -12,12 +12,14 @@ import {
 } from "react";
 import invariant from "tiny-invariant";
 import { AllItemsResult, getAllItems } from "~/api/item";
+import { getCartSession } from "~/utils/cart.server";
 
 type LoaderData = {
     items: AllItemsResult;
 };
 
 export const loader: LoaderFunction = async ({ request, params }) => {
+    const test = await getCartSession(request);
     const data: LoaderData = {
         items: await getAllItems(),
     };

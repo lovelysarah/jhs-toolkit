@@ -1,8 +1,10 @@
 .DS_Store
+/.cache
 node_modules
+.env
 
 /app/styles
-/.cache
 /build
+
 /public/build
-.env
+/public/assets

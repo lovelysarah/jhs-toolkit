@@ -1,16 +1,33 @@
 import { Category, Item } from "@prisma/client";
 import { LoaderFunction, SerializeFrom, json } from "@remix-run/node";
-import { Link, Outlet, useLoaderData } from "@remix-run/react";
+import {
+    Form,
+    Link,
+    Outlet,
+    useFetcher,
+    useLoaderData,
+} from "@remix-run/react";
 import clsx from "clsx";
-import { Dispatch, PropsWithChildren, SetStateAction, useState } from "react";
+import {
+    Dispatch,
+    PropsWithChildren,
+    SetStateAction,
+    useEffect,
+    useRef,
+    useState,
+} from "react";
 import { AllItemsResult, getAllItems } from "~/api/item";
+import { getCartSession } from "~/utils/cart.server";
 
 type LoaderData = {
     items: AllItemsResult;
+    cart: string[];
 };
 
 export const loader: LoaderFunction = async ({ request, params }) => {
+    const cartSession = await getCartSession(request);
     const data: LoaderData = {
+        cart: await cartSession.getCart(),
         items: await getAllItems(),
     };
 
@@ -70,6 +87,7 @@ const ItemCard = ({
                         {
                             "bg-slate-100": expanded,
                             "bg-white": !expanded,
+                            "!bg-red-300": item.quantity === 0 && queued === 0,
                             "!bg-green-300": queued !== 0,
                         }
                     )}>
@@ -84,31 +102,83 @@ const ItemCard = ({
     );
 };
 export default function ShedSummaryRoute() {
-    const { items } = useLoaderData<LoaderData>();
-    const [cart, setCart] = useState<string[]>([]);
+    const { items, cart: initialCart } = useLoaderData<LoaderData>();
+    const [cart, setCart] = useState<string[]>(initialCart || []);
     const [selected, setSelected] = useState<string | null>(null);
     let lastCategory: Category | null = null;
+
+    const persistCart = useFetcher();
+    const persistCartRef = useRef(persistCart);
+    const mountRun = useRef(false);
+
+    // Adjusts the item quantities based on the carts content
+    const calculate = () => {
+        return items.map((item) => {
+            const modifier = cart.filter((i) => i === item.shortId).length;
+            return {
+                ...item,
+                quantity: item.quantity - modifier,
+                checked_out: modifier,
+            };
+        });
+    };
+    let calculated = calculate();
+
+    useEffect(() => {
+        calculated = calculate();
+    }, [cart]);
+
+    useEffect(() => {
+        persistCartRef.current = persistCart;
+    }, [persistCart]);
+
+    useEffect(() => {
+        if (!mountRun.current) {
+            mountRun.current = true;
+            return;
+        }
+
+        if (!cart) return;
+
+        const string = JSON.stringify(cart);
+
+        persistCartRef.current.submit(
+            { cart: string },
+            { action: "/action/add-to-cart", method: "post" }
+        );
+    }, [cart]);
+
     return (
         <div>
-            <h2 className="theme-text-h4">Currently checked out</h2>
-
+            {cart.length > 0 && (
+                <h4 className="theme-text-h4">Awaiting check out</h4>
+            )}
             <div className="flex justify-between items-start">
-                <div className="flex-gap-2">
-                    {cart.map((item) => (
-                        <pre>{JSON.stringify(item, null, 2)}</pre>
+                <div className="flex gap-2">
+                    {cart.map((item, idx) => (
+                        <pre key={idx}>{JSON.stringify(item, null, 2)}</pre>
                     ))}
                 </div>
 
                 {cart.length > 0 && (
-                    <Link
-                        to="/shed/check-out"
-                        className="border text-xl px-4 py-2">
-                        Checkout {cart.length} items
-                    </Link>
+                    <div>
+                        <button
+                            className="border text-xl px-4 py-2"
+                            onClick={(e) => {
+                                setCart([]);
+                            }}>
+                            Clear
+                        </button>
+                        <Link
+                            to="/shed/check-out"
+                            className="border text-xl px-4 py-2">
+                            Checkout {cart.length} items
+                        </Link>
+                    </div>
                 )}
             </div>
             <div className="flex flex-col gap-2">
-                {items.map((item, index) => {
+                {calculated.map((item, index) => {
                     let addHeader = false;
                     if (lastCategory !== item.category) {
                         addHeader = true;
@@ -116,6 +186,9 @@ export default function ShedSummaryRoute() {
                     }
 
                     const [checkedOut, setCheckedOut] = useState(0);
+                    useEffect(() => {
+                        setCheckedOut(item.checked_out);
+                    }, [cart]);
 
                     const addToCheckout = (id: string) => {
                         setCheckedOut((prev) => prev + 1);

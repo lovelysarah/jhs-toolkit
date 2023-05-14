@@ -12,7 +12,8 @@
         "dev:remix": "remix watch",
         "dev:css": "postcss styles/global.css --output app/styles/global.css -w",
         "start": "cross-env NODE_ENV=production node ./server.js",
-        "typecheck": "tsc"
+        "typecheck": "tsc",
+        "db:test": "node -r esbuild-register prisma/playground.ts"
     },
     "dependencies": {
         "@prisma/client": "^4.14.0",

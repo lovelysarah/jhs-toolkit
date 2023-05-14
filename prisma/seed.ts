@@ -13,7 +13,7 @@ async function seed() {
         await db.item.create({
             data: {
                 ...item,
-                quantity: Math.floor(Math.random() * 3) + 1,
+                quantity: Math.floor(Math.random() * 3),
                 note: "This is a test",
                 last_checked_out_by: "YESS Group",
             },

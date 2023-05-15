@@ -15,7 +15,9 @@ export const links: LinksFunction = () => [{ rel: "stylesheet", href: global }];
 
 export default function App() {
     return (
-        <html lang="en">
+        <html
+            lang="en"
+            data-theme="winter">
             <head>
                 <meta charSet="utf-8" />
                 <meta

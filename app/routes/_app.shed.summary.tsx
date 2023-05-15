@@ -6,6 +6,7 @@ import {
     Outlet,
     useFetcher,
     useLoaderData,
+    useMatches,
 } from "@remix-run/react";
 import clsx from "clsx";
 import {
@@ -22,11 +23,13 @@ import { getCartSession } from "~/utils/cart.server";
 type LoaderData = {
     items: AllItemsResult;
     cart: string[];
+    itemId: string | undefined;
 };
 
 export const loader: LoaderFunction = async ({ request, params }) => {
     const cartSession = await getCartSession(request);
     const data: LoaderData = {
+        itemId: params.itemId,
         cart: await cartSession.getCart(),
         items: await getAllItems(),
     };
@@ -40,13 +43,15 @@ type CategoryHeaderProps = {
 const CategoryHeader = ({ category }: CategoryHeaderProps) => {
     return (
         <>
+            <div className="divider"></div>
             <h3 className="theme-text-h3 mt-4">{category.replace("_", " ")}</h3>
 
             <div className="flex">
-                <div className="py-2 px-4 flex justify-between items-center basis-[92%]">
+                <div className="py-2 px-4 flex items-center basis-full sm:basis-[70%]">
                     <span className="flex-1">Name</span>
-                    <span className="flex-1">Quantity</span>
-                    <span className="flex-1">Checked out</span>
+                    <span className="flex-1 text-right md:text-left">
+                        Quantity
+                    </span>
                 </div>
             </div>
         </>
@@ -55,7 +60,7 @@ const CategoryHeader = ({ category }: CategoryHeaderProps) => {
 
 type ItemCardProps = {
     item: SerializeFrom<Item>;
-    selectHandler: Dispatch<SetStateAction<string | null>>;
+    selectHandler: Dispatch<SetStateAction<string | undefined>>;
     expanded: boolean;
     queued: number;
 } & PropsWithChildren;
@@ -71,29 +76,39 @@ const ItemCard = ({
     const handleExpand = (
         e: React.MouseEvent<HTMLAnchorElement, MouseEvent>
     ) => {
-        if (expanded) return selectHandler(null);
+        if (expanded) return selectHandler(undefined);
         selectHandler(item.shortId);
     };
 
     return (
-        <div className={`flex items-start gap-2`}>
-            <div className="basis-[92%]">
+        <div className={`flex flex-col md:flex-row md:items-start gap-2`}>
+            <div className="basis-full sm:basis-[70%]">
                 <Link
                     key={item.name}
                     to={expanded ? "/shed/summary" : item.shortId}
                     onClick={handleExpand}
                     className={clsx(
-                        "py-2 px-4 border border-gray-400 hover:bg-slate-200 rounded-md flex justify-between items-center",
+                        `text-left no-animation btn shadow-lg
+                        rounded-md flex justify-between items-center `,
                         {
-                            "bg-slate-100": expanded,
-                            "bg-white": !expanded,
-                            "!bg-red-300": item.quantity === 0 && queued === 0,
-                            "!bg-green-300": queued !== 0,
+                            "btn-ghost":
+                                !expanded && item.quantity > 0 && queued === 0,
+                            "btn-ghost text-error":
+                                !expanded &&
+                                item.quantity === 0 &&
+                                queued === 0,
+                            "btn-success": !expanded && queued !== 0,
+                            "btn-primary": expanded,
                         }
                     )}>
-                    <span className="flex-1 font-bold">{item.name}</span>
-                    <span className="flex-1">{item.quantity}</span>
-                    <span className="flex-1">{queued}</span>
+                    <span className="flex-1 font-bold">
+                        {queued > 0
+                            ? `${queued} ${item.name} in cart`
+                            : item.name}
+                    </span>
+                    <span className="flex-1 text-right md:text-left">
+                        {item.quantity}
+                    </span>
                 </Link>
                 {expanded && <Outlet />}
             </div>
@@ -102,9 +117,16 @@ const ItemCard = ({
     );
 };
 export default function ShedSummaryRoute() {
-    const { items, cart: initialCart } = useLoaderData<LoaderData>();
+    // Get loader data
+    const { items, cart: initialCart, itemId } = useLoaderData<LoaderData>();
+
+    // Initialize cart
     const [cart, setCart] = useState<string[]>(initialCart || []);
-    const [selected, setSelected] = useState<string | null>(null);
+
+    // Initialized selected item
+    const [selected, setSelected] = useState<string | undefined>(itemId);
+
+    // Last category assigned to headers
     let lastCategory: Category | null = null;
 
     const persistCart = useFetcher();
@@ -114,7 +136,7 @@ export default function ShedSummaryRoute() {
     // Adjusts the item quantities based on the carts content
     const calculate = () => {
         return items.map((item) => {
-            const modifier = cart.filter((i) => i === item.shortId).length;
+            const modifier = cart.filter((i) => i === item.name).length;
             return {
                 ...item,
                 quantity: item.quantity - modifier,
@@ -123,6 +145,28 @@ export default function ShedSummaryRoute() {
         });
     };
     let calculated = calculate();
+
+    // Count items in cart
+    const itemCounts = cart.reduce((acc: any, item) => {
+        if (!acc[item]) {
+            acc[item] = 1;
+        } else {
+            acc[item]++;
+        }
+        return acc;
+    }, {});
+
+    // Displays badges for each unique item in the cart with their count.
+    const uniqueCart = [...new Set(cart)].map((item) => {
+        const count = itemCounts[item];
+        return (
+            <span
+                className="badge badge-outline badge-lg"
+                key={item}>
+                {count} {item}
+            </span>
+        );
+    });
 
     useEffect(() => {
         calculated = calculate();
@@ -149,32 +193,41 @@ export default function ShedSummaryRoute() {
     }, [cart]);
 
     return (
-        <div>
+        <div className="">
             {cart.length > 0 && (
-                <h4 className="theme-text-h4">Awaiting check out</h4>
+                <h4 className="theme-text-h4 mb-2">Awaiting check out</h4>
             )}
             <div className="flex justify-between items-start">
-                <div className="flex gap-2">
-                    {cart.map((item, idx) => (
-                        <pre key={idx}>{JSON.stringify(item, null, 2)}</pre>
-                    ))}
+                <div className="flex gap-2 basis-[70%] flex-wrap">
+                    {/* {cart.map((item, idx) => (
+                        <span
+                            className="badge badge-primary badge-lg"
+                            key={idx}>
+                            {item}
+                        </span>
+                    ))} */}
+                    {uniqueCart}
                 </div>
 
                 {cart.length > 0 && (
-                    <div>
-                        <button
-                            className="border text-xl px-4 py-2"
-                            onClick={(e) => {
-                                setCart([]);
-                            }}>
-                            Clear
-                        </button>
-                        <Link
-                            to="/shed/check-out"
-                            className="border text-xl px-4 py-2">
-                            Checkout {cart.length} items
-                        </Link>
-                    </div>
+                    <ul className="menu menu-vertical lg:menu-horizontal bg-base-100 rounded-lg">
+                        <li>
+                            <button
+                                className="border btn btn-ghost px-4 py-2"
+                                onClick={(e) => {
+                                    setCart([]);
+                                }}>
+                                Clear
+                            </button>
+                        </li>
+                        <li>
+                            <Link
+                                to="/shed/check-out"
+                                className="border btn btn-outline btn-primary text-primary-content px-4 py-2">
+                                Checkout {cart.length} items
+                            </Link>
+                        </li>
+                    </ul>
                 )}
             </div>
             <div className="flex flex-col gap-2">
@@ -218,31 +271,40 @@ export default function ShedSummaryRoute() {
                             {addHeader && (
                                 <CategoryHeader category={item.category} />
                             )}
+
+                            {/* {item.checked_out !== 0 && (
+                                <span className="btn">
+                                    {item.checked_out} in cart
+                                </span>
+                            )} */}
                             <ItemCard
                                 item={item}
                                 selectHandler={setSelected}
                                 queued={checkedOut}
                                 expanded={selected === item.shortId}>
-                                <div className="flex flex-col">
+                                <div className="flex gap-2 w-full md:w-[25%]">
                                     {item.quantity !== 0 && (
                                         <button
-                                            className="hover:underline"
+                                            className="btn btn-primary flex-1"
                                             onClick={(e) =>
-                                                addToCheckout(item.shortId)
+                                                addToCheckout(item.name)
                                             }>
                                             Add
                                         </button>
                                     )}
                                     {checkedOut > 0 && (
                                         <button
+                                            className="btn btn-error flex-1"
                                             onClick={(e) =>
-                                                removeFromCheckout(item.shortId)
+                                                removeFromCheckout(item.name)
                                             }>
                                             Remove
                                         </button>
                                     )}
                                     {selected === item.shortId && (
-                                        <button>Modify</button>
+                                        <button className="btn btn-warning flex-1">
+                                            Modify
+                                        </button>
                                     )}
                                 </div>
                             </ItemCard>

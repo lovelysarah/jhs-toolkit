@@ -17,28 +17,30 @@ export default function AppLayoutRoute() {
         <main className="bg-base-100 w-full overflow-hidden">
             <header className="col-center theme-padding-x">
                 <div className="theme-box-width">
-                    <div className="flex justify-between items-center py-4">
-                        {/* <Link to="/">
-                            <img
-                                src="/assets/jhs_logo.jpg"
-                                alt=""
-                                className="w-48"
-                            />
-                        </Link> */}
-                        <Link
-                            to="/"
-                            className="text-3xl font-bold">
-                            JHS <span className="font-normal">Toolkit</span>
-                        </Link>
-                        <ul className="flex gap-10">
-                            {navbarLinks.map((link) => (
-                                <li
-                                    className="hover:underline"
-                                    key={link.href}>
-                                    <Link to={link.href}>{link.title}</Link>
-                                </li>
-                            ))}
-                        </ul>
+                    <div className="navbar my-4">
+                        <div className="flex-1">
+                            <Link
+                                to="/"
+                                className="text-3xl font-bold theme-text-gradient">
+                                JHS{" "}
+                                <span className="font-normal text-black">
+                                    Toolkit
+                                </span>
+                            </Link>
+                        </div>
+                        <div className="flex-none">
+                            <ul className="menu menu-horizontal px-1">
+                                {navbarLinks.map((link) => {
+                                    return (
+                                        <li key={link.href}>
+                                            <Link to={link.href}>
+                                                {link.title}
+                                            </Link>
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        </div>
                     </div>
                 </div>
             </header>

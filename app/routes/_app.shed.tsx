@@ -33,7 +33,7 @@ type CategoryHeaderProps = {
 const CategoryHeader = ({ category }: CategoryHeaderProps) => {
     return (
         <>
-            <h3 className="theme-text-h3 mt-4">{category.replace("_", " ")}</h3>
+            <h3 className="theme-text-h1 mt-4">{category.replace("_", " ")}</h3>
 
             <div className="flex">
                 <div className="py-2 px-4 flex justify-between items-center basis-[92%]">
@@ -103,18 +103,21 @@ export default function ManageShedRoute() {
     return (
         <section className="">
             <div className="flex gap-4 my-4 justify-between items-center">
-                <h1 className="theme-text-h2">{formattedTitle}</h1>
+                <h1 className="theme-text-h2 theme-text-gradient">
+                    {formattedTitle}
+                </h1>
                 <div className="flex gap-4">
-                    <button className="border text-xl px-4 py-2">
+                    <button className="btn btn-ghost px-4 py-2">
                         Add new item
                     </button>
                     <Link
-                        className="border text-xl px-4 py-2"
+                        className="btn btn-ghost px-4 py-2 items-center"
                         to="/shed/check-in">
                         Check in
                     </Link>
                 </div>
             </div>
+            <div className="divider"></div>
             <Outlet />
             {/* <div>
                 <h2 className="theme-text-h4">Currently checked out</h2>

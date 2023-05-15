@@ -13,3 +13,11 @@ export const getSingleItem = async (shortId: string) => {
 };
 
 export type SingleItemResult = Awaited<ReturnType<typeof getSingleItem>>;
+
+export const getCollectionOfItems = async (ids: string[]) => {
+    return await db.item.findMany({ where: { name: { in: ids } } });
+};
+
+export type CollectionOfItems = Awaited<
+    ReturnType<typeof getCollectionOfItems>
+>;

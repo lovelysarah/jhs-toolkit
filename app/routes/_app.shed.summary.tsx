@@ -18,6 +18,8 @@ import {
     useState,
 } from "react";
 import { AllItemsResult, getAllItems } from "~/api/item";
+import { useCart } from "~/context/CartContext";
+import { countItemsInCart } from "~/utils/cart";
 import { getCartSession } from "~/utils/cart.server";
 
 type LoaderData = {
@@ -30,7 +32,7 @@ export const loader: LoaderFunction = async ({ request, params }) => {
     const cartSession = await getCartSession(request);
     const data: LoaderData = {
         itemId: params.itemId,
-        cart: await cartSession.getCart(),
+        cart: cartSession.getCart(),
         items: await getAllItems(),
     };
 
@@ -116,6 +118,28 @@ const ItemCard = ({
         </div>
     );
 };
+
+type AwaitingCheckoutProps = { cart: JSX.Element[]; clearCart: () => void };
+const AwaitingCheckout = ({ cart, clearCart }: AwaitingCheckoutProps) => {
+    return (
+        <>
+            <h4 className="theme-text-h4 mb-2">Awaiting check out</h4>
+            <div className="flex justify-between items-start bg-black/10 px-2 py-4 rounded-lg">
+                <div className="flex gap-2 basis-[70%] flex-wrap">{cart}</div>
+                <ul className="bg-base-100 rounded-lg">
+                    <li>
+                        <button
+                            className="border btn btn-outline btn-error px-4 py-2"
+                            onClick={(e) => clearCart()}>
+                            Clear
+                        </button>
+                    </li>
+                </ul>
+            </div>
+        </>
+    );
+};
+
 export default function ShedSummaryRoute() {
     // Get loader data
     const { items, cart: initialCart, itemId } = useLoaderData<LoaderData>();
@@ -129,6 +153,7 @@ export default function ShedSummaryRoute() {
     // Last category assigned to headers
     let lastCategory: Category | null = null;
 
+    const cartContext = useCart();
     const persistCart = useFetcher();
     const persistCartRef = useRef(persistCart);
     const mountRun = useRef(false);
@@ -146,22 +171,14 @@ export default function ShedSummaryRoute() {
     };
     let calculated = calculate();
 
-    // Count items in cart
-    const itemCounts = cart.reduce((acc: any, item) => {
-        if (!acc[item]) {
-            acc[item] = 1;
-        } else {
-            acc[item]++;
-        }
-        return acc;
-    }, {});
+    const itemCounts = countItemsInCart(cart);
 
     // Displays badges for each unique item in the cart with their count.
     const uniqueCart = [...new Set(cart)].map((item) => {
         const count = itemCounts[item];
         return (
             <span
-                className="badge badge-outline badge-lg"
+                className="badge badge-primary badge-lg"
                 key={item}>
                 {count} {item}
             </span>
@@ -184,6 +201,8 @@ export default function ShedSummaryRoute() {
 
         if (!cart) return;
 
+        cartContext.update(cart.length);
+
         const string = JSON.stringify(cart);
 
         persistCartRef.current.submit(
@@ -195,41 +214,11 @@ export default function ShedSummaryRoute() {
     return (
         <div className="">
             {cart.length > 0 && (
-                <h4 className="theme-text-h4 mb-2">Awaiting check out</h4>
+                <AwaitingCheckout
+                    cart={uniqueCart}
+                    clearCart={() => setCart([])}
+                />
             )}
-            <div className="flex justify-between items-start">
-                <div className="flex gap-2 basis-[70%] flex-wrap">
-                    {/* {cart.map((item, idx) => (
-                        <span
-                            className="badge badge-primary badge-lg"
-                            key={idx}>
-                            {item}
-                        </span>
-                    ))} */}
-                    {uniqueCart}
-                </div>
-
-                {cart.length > 0 && (
-                    <ul className="menu menu-vertical lg:menu-horizontal bg-base-100 rounded-lg">
-                        <li>
-                            <button
-                                className="border btn btn-ghost px-4 py-2"
-                                onClick={(e) => {
-                                    setCart([]);
-                                }}>
-                                Clear
-                            </button>
-                        </li>
-                        <li>
-                            <Link
-                                to="/shed/check-out"
-                                className="border btn btn-outline btn-primary text-primary-content px-4 py-2">
-                                Checkout {cart.length} items
-                            </Link>
-                        </li>
-                    </ul>
-                )}
-            </div>
             <div className="flex flex-col gap-2">
                 {calculated.map((item, index) => {
                     let addHeader = false;
@@ -243,15 +232,17 @@ export default function ShedSummaryRoute() {
                         setCheckedOut(item.checked_out);
                     }, [cart]);
 
-                    const addToCheckout = (id: string) => {
+                    const addToCheckout = (toAdd: string) => {
                         setCheckedOut((prev) => prev + 1);
                         item.quantity = item.quantity - 1;
-                        setCart((prev) => [...prev, id]);
+                        setCart((prev) => [...prev, toAdd]);
                     };
 
-                    const removeFromCheckout = (id: string) => {
+                    const removeFromCheckout = (toRemove: string) => {
                         // Finds first instance on the item to remove.
-                        const idx = cart.findIndex((itemID) => itemID === id);
+                        const idx = cart.findIndex(
+                            (cartItem) => cartItem === toRemove
+                        );
 
                         // Removes first instance of the item to remove
                         const removeFromArray = (prev: string[]) => {

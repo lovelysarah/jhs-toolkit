@@ -7,7 +7,16 @@ type LoaderData = {
     item: SingleItemResult;
 };
 
-const months = ["January", "February", "March", "April", "May", "June"];
+const months = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "",
+];
 
 export const loader: LoaderFunction = async ({ params }) => {
     invariant(params.itemId, "Expected itemId");
@@ -21,18 +30,21 @@ export const loader: LoaderFunction = async ({ params }) => {
 export default function ItemDetailRoute() {
     const { item } = useLoaderData<LoaderData>();
     invariant(item);
+    console.log(item.last_checked_out_at);
     const date = new Date(item.last_checked_out_at);
+
+    console.log({ date });
+    console.log({ test: date.getUTCDay() });
 
     return (
         <div className="px-4 py-2">
             <Outlet />
-            <Link to={`/manage/shed/${item.shortId}/edit`}>Modify</Link>
             <p>{item.note}</p>
             <p>
                 Last checked out by{" "}
                 <span className="font-bold">{item.last_checked_out_by}</span> on{" "}
                 <span className="font-bold">
-                    {months[date.getUTCMonth()]} {date.getUTCDay()}{" "}
+                    {months[date.getUTCMonth()]} {date.getUTCDate()}{" "}
                     {date.getUTCFullYear()}
                 </span>
             </p>

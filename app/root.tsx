@@ -10,6 +10,7 @@ import {
 } from "@remix-run/react";
 
 import global from "~/styles/global.css";
+import { CartProvider } from "./context/CartContext";
 
 export const links: LinksFunction = () => [{ rel: "stylesheet", href: global }];
 
@@ -28,7 +29,9 @@ export default function App() {
                 <Links />
             </head>
             <body>
-                <Outlet />
+                <CartProvider>
+                    <Outlet />
+                </CartProvider>
                 {/* <ScrollRestoration /> */}
                 <Scripts />
                 <LiveReload />

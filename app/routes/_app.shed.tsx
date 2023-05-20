@@ -1,7 +1,13 @@
 import clsx from "clsx";
 import { Category, Item } from "@prisma/client";
 import { LoaderFunction, SerializeFrom, json } from "@remix-run/node";
-import { Link, Outlet, useLoaderData, useLocation } from "@remix-run/react";
+import {
+    Link,
+    NavLink,
+    Outlet,
+    useLoaderData,
+    useLocation,
+} from "@remix-run/react";
 import { nanoid } from "nanoid";
 import {
     Dispatch,
@@ -13,13 +19,13 @@ import {
 import invariant from "tiny-invariant";
 import { AllItemsResult, getAllItems } from "~/api/item";
 import { getCartSession } from "~/utils/cart.server";
+import { useCart } from "~/context/CartContext";
 
 type LoaderData = {
     items: AllItemsResult;
 };
 
 export const loader: LoaderFunction = async ({ request, params }) => {
-    const test = await getCartSession(request);
     const data: LoaderData = {
         items: await getAllItems(),
     };
@@ -27,178 +33,71 @@ export const loader: LoaderFunction = async ({ request, params }) => {
     return json(data);
 };
 
-type CategoryHeaderProps = {
-    category: Category;
+type ShedMenuLink = {
+    text: string;
+    href: string;
+    display: boolean;
+    end?: true;
 };
-const CategoryHeader = ({ category }: CategoryHeaderProps) => {
-    return (
-        <>
-            <h3 className="theme-text-h1 mt-4">{category.replace("_", " ")}</h3>
-
-            <div className="flex">
-                <div className="py-2 px-4 flex justify-between items-center basis-[92%]">
-                    <span className="flex-1">Name</span>
-                    <span className="flex-1">Quantity</span>
-                    <span className="flex-1">Checked out</span>
-                </div>
-            </div>
-        </>
-    );
-};
-
-type ItemCardProps = {
-    item: SerializeFrom<Item>;
-    selectHandler: Dispatch<SetStateAction<string | null>>;
-    expanded: boolean;
-    queued: number;
-} & PropsWithChildren;
-
-const ItemCard = ({
-    item,
-    selectHandler,
-    expanded,
-    queued,
-    children,
-}: ItemCardProps) => {
-    // Toggles card expansion
-    const handleExpand = (
-        e: React.MouseEvent<HTMLAnchorElement, MouseEvent>
-    ) => {
-        if (expanded) return selectHandler(null);
-        selectHandler(item.shortId);
-    };
-
-    return (
-        <div className={`flex items-start gap-2`}>
-            <div className="basis-[92%]">
-                <Link
-                    key={item.name}
-                    to={expanded ? "/manage/shed" : item.shortId}
-                    onClick={handleExpand}
-                    className={clsx(
-                        "py-2 px-4 border border-gray-400 hover:bg-slate-200 rounded-md flex justify-between items-center",
-                        {
-                            "bg-slate-100": expanded,
-                            "bg-white": !expanded,
-                            "!bg-green-300": queued !== 0,
-                        }
-                    )}>
-                    <span className="flex-1 font-bold">{item.name}</span>
-                    <span className="flex-1">{item.quantity}</span>
-                    <span className="flex-1">{queued}</span>
-                </Link>
-                {expanded && <Outlet />}
-            </div>
-            {children}
-        </div>
-    );
-};
+const shedMenuLinks: ShedMenuLink[] = [
+    { text: "Activity", href: "/shed", display: true, end: true },
+    { text: "Summary", href: "/shed/summary", display: true },
+    { text: "Check-in", href: "/shed/check-in", display: true },
+    { text: "Check-out", href: "/shed/check-out", display: true },
+];
 
 export default function ManageShedRoute() {
+    const cart = useCart();
     const location = useLocation();
     const title = location.pathname.split("/")[2];
-    const formattedTitle = title.slice(0, 1).toUpperCase() + title.slice(1);
-    const [cart, setCart] = useState<string[]>([]);
-    let lastCategory: Category | null = null;
+    const formattedTitle = title
+        ? title.slice(0, 1).toUpperCase() + title.slice(1)
+        : "Shed Management";
+
     return (
         <section className="">
             <div className="flex gap-4 my-4 justify-between items-center">
                 <h1 className="theme-text-h2 theme-text-gradient">
                     {formattedTitle}
                 </h1>
-                <div className="flex gap-4">
-                    <button className="btn btn-ghost px-4 py-2">
-                        Add new item
-                    </button>
-                    <Link
-                        className="btn btn-ghost px-4 py-2 items-center"
-                        to="/shed/check-in">
-                        Check in
-                    </Link>
-                </div>
-            </div>
-            <div className="divider"></div>
-            <Outlet />
-            {/* <div>
-                <h2 className="theme-text-h4">Currently checked out</h2>
-                <div className="flex flex-col gap-2">
-                    {items.map((item, index) => {
-                        let addHeader = false;
-                        if (lastCategory !== item.category) {
-                            addHeader = true;
-                            lastCategory = item.category;
-                        }
+                <nav className="menu menu-horizontal gap-4">
+                    {shedMenuLinks.map((link) => {
+                        const text =
+                            link.text === "Check-out"
+                                ? `${link.text} (${cart.count})`
+                                : link.text;
 
-                        const [checkedOut, setCheckedOut] = useState(0);
+                        const activeClasses = "btn btn-outline btn-primary";
+                        const checkoutRoute = link.href === "/shed/check-out";
 
-                        const addToCheckout = (id: string) => {
-                            setCheckedOut((prev) => prev + 1);
-                            item.quantity = item.quantity - 1;
-                            setCart((prev) => [...prev, id]);
-                        };
+                        console.log({ checkoutRoute });
 
-                        const removeFromCheckout = (id: string) => {
-                            // Finds first instance on the item to remove.
-                            const idx = cart.findIndex(
-                                (itemID) => itemID === id
-                            );
+                        const passiveClasses =
+                            cart.count > 0
+                                ? "btn btn-ghost"
+                                : checkoutRoute
+                                ? "btn btn-ghost btn-disabled opacity-50"
+                                : "btn btn-ghost";
 
-                            // Removes first instance of the item to remove
-                            const removeFromArray = (prev: string[]) => {
-                                const copy = [...prev];
-                                copy.splice(idx, 1);
-                                return copy;
-                            };
-
-                            // Updates state to updated array
-                            setCart(removeFromArray);
-
-                            setCheckedOut((prev) => prev - 1);
-                            item.quantity = item.quantity + 1;
-                        };
                         return (
-                            <div key={item.shortId}>
-                                {addHeader && (
-                                    <CategoryHeader category={item.category} />
-                                )}
-                                <ItemCard
-                                    item={item}
-                                    selectHandler={setSelected}
-                                    queued={checkedOut}
-                                    expanded={selected === item.shortId}>
-                                    <div className="flex flex-col">
-                                        {item.quantity !== 0 && (
-                                            <button
-                                                className="hover:underline"
-                                                onClick={(e) =>
-                                                    addToCheckout(item.shortId)
-                                                }>
-                                                Checkout
-                                            </button>
-                                        )}
-                                        {checkedOut > 0 && (
-                                            <button
-                                                onClick={(e) =>
-                                                    removeFromCheckout(
-                                                        item.shortId
-                                                    )
-                                                }>
-                                                Remove
-                                            </button>
-                                        )}
-                                        {selected === item.shortId && (
-                                            <button>Modify</button>
-                                        )}
-                                    </div>
-                                </ItemCard>
-                            </div>
+                            <NavLink
+                                key={link.text}
+                                to={link.href}
+                                className={({ isActive, isPending }) =>
+                                    isPending
+                                        ? "btn btn-ghost"
+                                        : isActive
+                                        ? activeClasses
+                                        : passiveClasses
+                                }
+                                end={link.end}>
+                                {text}
+                            </NavLink>
                         );
                     })}
-                </div>
-            </div> */}
-            <h2 className="theme-text-h3">Main List</h2>
-            <p>te</p>
-            <h2 className="theme-text-h3">Activity</h2>
+                </nav>
+            </div>
+            <Outlet />
         </section>
     );
 }

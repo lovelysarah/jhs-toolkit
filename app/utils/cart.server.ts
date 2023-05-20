@@ -1,4 +1,4 @@
-import { createCookieSessionStorage, redirect } from "@remix-run/node";
+import { createCookieSessionStorage } from "@remix-run/node";
 
 const cartSecret = process.env.CART_SECRET;
 
@@ -20,7 +20,7 @@ export async function getCartSession(request: Request) {
     const session = await getSession(request.headers.get("Cookie"));
 
     return {
-        getCart: () => session.get("items"),
+        getCart: () => session.get("items") as string[],
         updateCart: (cartItems: string[]) => session.set("items", cartItems),
         commit: () => commitSession(session),
     };

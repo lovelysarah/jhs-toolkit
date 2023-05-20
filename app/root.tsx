@@ -18,7 +18,7 @@ export default function App() {
     return (
         <html
             lang="en"
-            data-theme="winter">
+            data-theme="my-theme">
             <head>
                 <meta charSet="utf-8" />
                 <meta

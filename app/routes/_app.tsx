@@ -5,6 +5,7 @@ type NavbarLink = {
     href: string;
 };
 const navbarLinks: NavbarLink[] = [
+    { title: "Sign in", href: "/auth" },
     { title: "Requests", href: "/requests" },
     { title: "Shed Inventory", href: "/shed" },
     {
@@ -18,12 +19,15 @@ export default function AppLayoutRoute() {
         <main className="bg-base-100 w-full">
             <header className="col-center px-4">
                 <div className="theme-box-width">
-                    <div className="navbar my-4 bg-black/10 rounded-lg">
+                    <div className="navbar my-4 bg-neutral rounded-lg px-4">
                         <div className="flex-1">
                             <NavLink
                                 to="/"
-                                className="text-3xl font-bold theme-text-gradient">
-                                JHS <span className="font-normal">Toolkit</span>
+                                className="text-3xl font-bold text-base-100">
+                                JHS{" "}
+                                <span className="font-normal theme-text-gradient">
+                                    Toolkit
+                                </span>
                             </NavLink>
                         </div>
                         <div className="flex-none">
@@ -38,10 +42,10 @@ export default function AppLayoutRoute() {
                                                     isPending,
                                                 }) =>
                                                     isPending
-                                                        ? "text-black/40"
+                                                        ? "text-neutral-content"
                                                         : isActive
-                                                        ? "text-black"
-                                                        : "text-black/60 underline"
+                                                        ? "text-neutral-content"
+                                                        : "text-neutral-content/60 underline"
                                                 }>
                                                 {link.title}
                                             </NavLink>
@@ -58,9 +62,12 @@ export default function AppLayoutRoute() {
                     <Outlet />
                 </div>
             </div>
-            <div className="col-center theme-padding-x">
+            <div className="col-center px-8 xl:px-0">
                 <div className="theme-box-width row-center-start gap-5 theme-padding-y font-bold">
-                    <p>Copyright © John Howard Society SENB 2023</p>
+                    <p className="">
+                        © 2022 John Howard Society South East New Brunswick. All
+                        rights
+                    </p>
                 </div>
             </div>
             {/* <iframe

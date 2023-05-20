@@ -1,8 +1,8 @@
-import type { Config } from 'tailwindcss'
+import type { Config } from "tailwindcss";
 
 export default {
-  content: ["app/**/*.{js,tsx,ts,tsx}"],
-  mode: "jit",
+    content: ["app/**/*.{js,tsx,ts,tsx}"],
+    mode: "jit",
     theme: {
         extend: {
             spacing: {
@@ -59,5 +59,30 @@ export default {
             },
         },
     },
-  plugins: [require('daisyui')],
-} satisfies Config
+    daisyui: {
+        themes: [
+            {
+                mytheme: {
+                    primary: "#0ea5e9",
+
+                    secondary: "#93c5fd",
+
+                    accent: "#1e40af",
+
+                    neutral: "#1f2937",
+
+                    "base-100": "#e5e7eb",
+
+                    info: "#7dd3fc",
+
+                    success: "#86efac",
+
+                    warning: "#fde68a",
+
+                    error: "#fca5a5",
+                },
+            },
+        ],
+    },
+    plugins: [require("daisyui")],
+};

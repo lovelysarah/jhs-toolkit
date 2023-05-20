@@ -14,6 +14,7 @@ import {
     PropsWithChildren,
     SetStateAction,
     useEffect,
+    useMemo,
     useRef,
     useState,
 } from "react";
@@ -124,12 +125,12 @@ const AwaitingCheckout = ({ cart, clearCart }: AwaitingCheckoutProps) => {
     return (
         <>
             <h4 className="theme-text-h4 mb-2">Awaiting check out</h4>
-            <div className="flex justify-between items-start bg-black/10 px-2 py-4 rounded-lg">
+            <div className="flex justify-between items-start px-2 py-4 rounded-lg">
                 <div className="flex gap-2 basis-[70%] flex-wrap">{cart}</div>
                 <ul className="bg-base-100 rounded-lg">
                     <li>
                         <button
-                            className="border btn btn-outline btn-error px-4 py-2"
+                            className="border btn btn-error px-4 py-2"
                             onClick={(e) => clearCart()}>
                             Clear
                         </button>
@@ -158,7 +159,6 @@ export default function ShedSummaryRoute() {
     const persistCartRef = useRef(persistCart);
     const mountRun = useRef(false);
 
-    // Adjusts the item quantities based on the carts content
     const calculate = () => {
         return items.map((item) => {
             const modifier = cart.filter((i) => i === item.name).length;
@@ -169,21 +169,25 @@ export default function ShedSummaryRoute() {
             };
         });
     };
-    let calculated = calculate();
 
-    const itemCounts = countItemsInCart(cart);
+    let calculated = useMemo(() => calculate(), [cart]);
+    const itemCounts = useMemo(() => countItemsInCart(cart), [cart]);
 
     // Displays badges for each unique item in the cart with their count.
-    const uniqueCart = [...new Set(cart)].map((item) => {
-        const count = itemCounts[item];
-        return (
-            <span
-                className="badge badge-primary badge-lg"
-                key={item}>
-                {count} {item}
-            </span>
-        );
-    });
+    const uniqueCart = useMemo(
+        () =>
+            [...new Set(cart)].map((item) => {
+                const count = itemCounts[item];
+                return (
+                    <span
+                        className="badge badge-neutral badge-lg"
+                        key={item}>
+                        {count} {item}
+                    </span>
+                );
+            }),
+        [cart]
+    );
 
     useEffect(() => {
         calculated = calculate();
@@ -273,10 +277,10 @@ export default function ShedSummaryRoute() {
                                 selectHandler={setSelected}
                                 queued={checkedOut}
                                 expanded={selected === item.shortId}>
-                                <div className="flex gap-2 w-full md:w-[25%]">
+                                <div className="flex gap-2 w-full md:w-[30%]">
                                     {item.quantity !== 0 && (
                                         <button
-                                            className="btn btn-primary flex-1"
+                                            className="btn btn-neutral flex-1"
                                             onClick={(e) =>
                                                 addToCheckout(item.name)
                                             }>

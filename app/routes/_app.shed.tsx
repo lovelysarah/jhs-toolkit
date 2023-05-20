@@ -1,33 +1,18 @@
-import clsx from "clsx";
-import { Category, Item } from "@prisma/client";
-import { LoaderFunction, SerializeFrom, json } from "@remix-run/node";
-import {
-    Link,
-    NavLink,
-    Outlet,
-    useLoaderData,
-    useLocation,
-} from "@remix-run/react";
-import { nanoid } from "nanoid";
-import {
-    Dispatch,
-    PropsWithChildren,
-    ReactNode,
-    SetStateAction,
-    useState,
-} from "react";
-import invariant from "tiny-invariant";
-import { AllItemsResult, getAllItems } from "~/api/item";
+import { LoaderFunction, json } from "@remix-run/node";
+import { NavLink, Outlet, useLoaderData, useLocation } from "@remix-run/react";
+import { useEffect } from "react";
 import { getCartSession } from "~/utils/cart.server";
 import { useCart } from "~/context/CartContext";
 
 type LoaderData = {
-    items: AllItemsResult;
+    cartCount: number;
 };
 
 export const loader: LoaderFunction = async ({ request, params }) => {
+    const cart = (await getCartSession(request)).getCart();
+
     const data: LoaderData = {
-        items: await getAllItems(),
+        cartCount: cart.length,
     };
 
     return json(data);
@@ -47,12 +32,23 @@ const shedMenuLinks: ShedMenuLink[] = [
 ];
 
 export default function ManageShedRoute() {
+    // Get cart count from loader data
+    const { cartCount } = useLoaderData<LoaderData>();
+
+    // Get cart context
     const cart = useCart();
+
+    // Get the title from the URL
     const location = useLocation();
     const title = location.pathname.split("/")[2];
     const formattedTitle = title
         ? title.slice(0, 1).toUpperCase() + title.slice(1)
         : "Shed Management";
+
+    // Load cart count on page load
+    useEffect(() => {
+        cart.update(cartCount);
+    }, []);
 
     return (
         <section className="">

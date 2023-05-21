@@ -8,8 +8,8 @@ type LoaderData = {
     cartCount: number;
 };
 
-export const loader: LoaderFunction = async ({ request, params }) => {
-    const cart = (await getCartSession(request)).getCart();
+export const loader: LoaderFunction = async ({ request }) => {
+    const cart = (await getCartSession(request)).getCart() ?? [];
 
     const data: LoaderData = {
         cartCount: cart.length,

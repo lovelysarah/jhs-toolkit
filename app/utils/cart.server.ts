@@ -20,7 +20,7 @@ export async function getCartSession(request: Request) {
     const session = await getSession(request.headers.get("Cookie"));
 
     return {
-        getCart: () => session.get("items") as string[],
+        getCart: (): string[] | undefined => session.get("items"),
         updateCart: (cartItems: string[]) => session.set("items", cartItems),
         commit: () => commitSession(session),
     };

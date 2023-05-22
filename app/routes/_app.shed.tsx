@@ -1,14 +1,19 @@
-import { LoaderFunction, json } from "@remix-run/node";
+import { LoaderFunction, json, redirect } from "@remix-run/node";
 import { NavLink, Outlet, useLoaderData, useLocation } from "@remix-run/react";
 import { useEffect } from "react";
 import { getCartSession } from "~/utils/cart.server";
 import { useCart } from "~/context/CartContext";
+import { getUserId, requireUser } from "~/utils/session.server";
 
 type LoaderData = {
     cartCount: number;
 };
 
 export const loader: LoaderFunction = async ({ request }) => {
+    // Redirect to login if user is not logged in
+    await requireUser(request);
+
+    // Get cart from session or empty array
     const cart = (await getCartSession(request)).getCart() ?? [];
 
     const data: LoaderData = {
@@ -65,8 +70,6 @@ export default function ManageShedRoute() {
 
                         const activeClasses = "btn btn-outline btn-primary";
                         const checkoutRoute = link.href === "/shed/check-out";
-
-                        console.log({ checkoutRoute });
 
                         const passiveClasses =
                             cart.count > 0

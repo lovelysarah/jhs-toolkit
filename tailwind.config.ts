@@ -1,5 +1,3 @@
-import type { Config } from "tailwindcss";
-
 export default {
     content: ["app/**/*.{js,tsx,ts,tsx}"],
     mode: "jit",

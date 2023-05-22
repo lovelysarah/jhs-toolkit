@@ -6,33 +6,21 @@ export const meta: V2_MetaFunction = () => {
 
 export default function Index() {
     return (
-        <div className="">
-            <ul>
-                <li>
-                    <a
-                        target="_blank"
-                        href="https://remix.run/tutorials/blog"
-                        rel="noreferrer">
-                        15m Quickstart Blog Tutorial
-                    </a>
-                </li>
-                <li>
-                    <a
-                        target="_blank"
-                        href="https://remix.run/tutorials/jokes"
-                        rel="noreferrer">
-                        Deep Dive Jokes App Tutorial
-                    </a>
-                </li>
-                <li>
-                    <a
-                        target="_blank"
-                        href="https://remix.run/docs"
-                        rel="noreferrer">
-                        Remix Docs
-                    </a>
-                </li>
-            </ul>
+        <div className="flex flex-col items-start">
+            <h1 className="theme-text-h2 theme-text-gradient my-4">
+                Announcement
+            </h1>
+            <div className="bg-base-200 rounded-box px-4 py-2">
+                <h2 className="theme-text-h3">Welcome to the team!</h2>
+                <p className="line-clamp-2">
+                    Lorem ipsum dolor sit amet consectetur adipisicing elit.
+                    Corrupti at eum quidem quod necessitatibus dolorem excepturi
+                    odio ea eaque, voluptatum non molestiae dolores minima et
+                    adipisci dolor suscipit. Amet provident eligendi adipisci
+                    sint sapiente impedit quam? Nobis consequatur illum
+                    blanditiis.
+                </p>
+            </div>
         </div>
     );
 }

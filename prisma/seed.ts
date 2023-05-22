@@ -1,25 +1,45 @@
-import { Item } from "@prisma/client";
+import { Item, User } from "@prisma/client";
 import { db } from "~/utils/db.server";
 import { nanoid } from "nanoid";
 
 async function setup() {
-    await db.item.deleteMany({});
+    // await db.item.deleteMany({});
     await db.kit.deleteMany({});
     await db.user.deleteMany({});
 }
 
 async function seed() {
-    createItems.forEach(async (item) => {
-        await db.item.create({
+    getUsers.forEach(async (user) => {
+        await db.user.create({
             data: {
-                ...item,
-                quantity: Math.floor(Math.random() * 3),
-                note: "This is a test",
-                last_checked_out_by: "YESS Group",
+                ...user,
             },
         });
     });
+    // createItems.forEach(async (item) => {
+    //     await db.item.create({
+    //         data: {
+    //             ...item,
+    //             quantity: Math.floor(Math.random() * 6),
+    //             note: "This is a test",
+    //             last_checked_out_by: "YESS Group",
+    //         },
+    //     });
+    // });
 }
+
+const getUsers: Pick<
+    User,
+    "username" | "password" | "name" | "account_type"
+>[] = [
+    {
+        username: "admin",
+        password:
+            "$2a$10$FZ8WtmO.1/EsKEibQofj.eP2sZqLx.kbUWdIndkNsXriMlP58cfH.",
+        name: "Sarah Robichaud",
+        account_type: "ADMIN",
+    },
+];
 
 const createItems: Pick<Item, "name" | "shortId" | "category">[] = [
     { name: "Broom", shortId: nanoid(10), category: "GENERAL" },

@@ -38,8 +38,15 @@ model Item {
 }
 
 model User {
-  id       String @id @default(auto()) @map("_id") @db.ObjectId
-  username String @unique
-  authId   String @unique
-  password String
+  id           String       @id @default(auto()) @map("_id") @db.ObjectId
+  username     String       @unique
+  password     String
+  name         String
+  account_type ACCOUNT_TYPE
+  shed_cart    String[]
+}
+
+enum ACCOUNT_TYPE {
+  ADMIN
+  USER
 }

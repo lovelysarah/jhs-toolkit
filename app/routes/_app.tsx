@@ -1,20 +1,41 @@
-import { NavLink, Outlet } from "@remix-run/react";
+import { LoaderFunction, json } from "@remix-run/node";
+import { NavLink, Outlet, useLoaderData } from "@remix-run/react";
+import { getUserId } from "~/utils/session.server";
 
 type NavbarLink = {
     title: string;
     href: string;
+    private?: true;
 };
+
 const navbarLinks: NavbarLink[] = [
-    { title: "Sign in", href: "/auth" },
-    { title: "Requests", href: "/requests" },
-    { title: "Shed Inventory", href: "/shed" },
+    { title: "Announcement", href: "/" },
+    { title: "Requests", href: "/requests", private: true },
+    { title: "Shed Inventory", href: "/shed", private: true },
     {
         title: "Guidelines",
         href: "/guidelines",
+        private: true,
     },
+    { title: "Sign in", href: "/auth" },
 ];
 
+type LoaderData = {
+    isSignedIn: boolean;
+};
+
+export const loader: LoaderFunction = async ({ request }) => {
+    const user = await getUserId(request);
+
+    const data: LoaderData = {
+        isSignedIn: user ? true : false,
+    };
+
+    return json(data);
+};
+
 export default function AppLayoutRoute() {
+    const { isSignedIn } = useLoaderData<LoaderData>();
     return (
         <main className="bg-base-100 w-full">
             <header className="col-center px-4">
@@ -31,8 +52,14 @@ export default function AppLayoutRoute() {
                             </NavLink>
                         </div>
                         <div className="flex-none">
-                            <ul className="flex gap-8 px-1">
+                            <ul className="flex gap-8 px-1 items-center">
                                 {navbarLinks.map((link) => {
+                                    if (
+                                        (!isSignedIn && link.private) ||
+                                        (isSignedIn && link.href === "/auth")
+                                    )
+                                        return;
+
                                     return (
                                         <li key={link.href}>
                                             <NavLink
@@ -52,6 +79,19 @@ export default function AppLayoutRoute() {
                                         </li>
                                     );
                                 })}
+                                {isSignedIn && (
+                                    <li>
+                                        <form
+                                            action="/logout"
+                                            method="post">
+                                            <button
+                                                type="submit"
+                                                className="link text-error">
+                                                Sign out
+                                            </button>
+                                        </form>
+                                    </li>
+                                )}
                             </ul>
                         </div>
                     </div>
@@ -66,16 +106,10 @@ export default function AppLayoutRoute() {
                 <div className="theme-box-width row-center-start gap-5 theme-padding-y font-bold">
                     <p className="">
                         © 2022 John Howard Society South East New Brunswick. All
-                        rights
+                        rights. Developed by Sarah L. Robichaud
                     </p>
                 </div>
             </div>
-            {/* <iframe
-                src="https://widgets.scribblemaps.com/sm/?d=true&amp;z=true&amp;l=true&amp;id=IjM8mZGQB_"
-                width="1200"
-                height="800"
-                title="John Howard Society"
-                allowFullScreen={true}></iframe> */}
         </main>
     );
 }

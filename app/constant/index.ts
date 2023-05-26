@@ -4,4 +4,4 @@ export const VALID_URLS = [
     "/shed/summary",
     "/shed/check-in",
     "/shed/check-out",
-] as const;
+];

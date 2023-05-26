@@ -10,12 +10,9 @@ export const action: ActionFunction = async ({ request }) => {
     const session = await getCartSession(request);
 
     const requestText = await request.text();
-    console.log({ requestText });
     const form = new URLSearchParams(requestText);
-    console.log({ form });
     const cart = form.get("cart");
 
-    console.log({ cart });
     if (!cart) {
         return json({ success: false, message: "No cart object" });
     }

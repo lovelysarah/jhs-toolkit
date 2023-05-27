@@ -14,7 +14,7 @@ export const loader: LoaderFunction = async ({ request }) => {
     await requireUser(request);
 
     // Get cart from session or empty array
-    const cart = (await getCartSession(request)).getCart() ?? [];
+    const cart = (await getCartSession(request)).getCart();
 
     const data: LoaderData = {
         cartCount: cart.length,

@@ -3,8 +3,7 @@ import { db } from "~/utils/db.server";
 import { nanoid } from "nanoid";
 
 async function setup() {
-    // await db.item.deleteMany({});
-    await db.kit.deleteMany({});
+    await db.item.deleteMany({});
     await db.user.deleteMany({});
 }
 
@@ -16,16 +15,16 @@ async function seed() {
             },
         });
     });
-    // createItems.forEach(async (item) => {
-    //     await db.item.create({
-    //         data: {
-    //             ...item,
-    //             quantity: Math.floor(Math.random() * 6),
-    //             note: "This is a test",
-    //             last_checked_out_by: "YESS Group",
-    //         },
-    //     });
-    // });
+    createItems.forEach(async (item) => {
+        await db.item.create({
+            data: {
+                ...item,
+                quantity: Math.floor(Math.random() * 6),
+                note: "This is a test",
+                last_checked_out_by: "YESS Group",
+            },
+        });
+    });
 }
 
 const getUsers: Pick<
@@ -38,6 +37,20 @@ const getUsers: Pick<
             "$2a$10$FZ8WtmO.1/EsKEibQofj.eP2sZqLx.kbUWdIndkNsXriMlP58cfH.",
         name: "Sarah Robichaud",
         account_type: "ADMIN",
+    },
+    {
+        username: "pablo971",
+        password:
+            "$2a$10$FZ8WtmO.1/EsKEibQofj.eP2sZqLx.kbUWdIndkNsXriMlP58cfH.",
+        name: "Foo bar",
+        account_type: "USER",
+    },
+    {
+        username: "guest123",
+        password:
+            "$2a$10$FZ8WtmO.1/EsKEibQofj.eP2sZqLx.kbUWdIndkNsXriMlP58cfH.",
+        name: "Guest",
+        account_type: "GUEST",
     },
 ];
 

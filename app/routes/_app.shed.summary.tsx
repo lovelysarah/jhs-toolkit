@@ -6,7 +6,6 @@ import {
     Outlet,
     useFetcher,
     useLoaderData,
-    useMatches,
 } from "@remix-run/react";
 import clsx from "clsx";
 import {
@@ -19,7 +18,6 @@ import {
     useState,
 } from "react";
 import { AllItemsResult, getAllItems } from "~/api/item";
-import { useCart } from "~/context/CartContext";
 import { countItemsInCart } from "~/utils/cart";
 import { getCartSession } from "~/utils/cart.server";
 
@@ -154,7 +152,6 @@ export default function ShedSummaryRoute() {
     // Last category assigned to headers
     let lastCategory: Category | null = null;
 
-    const cartContext = useCart();
     const persistCart = useFetcher();
     const persistCartRef = useRef(persistCart);
     const mountRun = useRef(false);
@@ -205,13 +202,11 @@ export default function ShedSummaryRoute() {
 
         if (!cart) return;
 
-        cartContext.update(cart.length);
-
         const string = JSON.stringify(cart);
 
         persistCartRef.current.submit(
             { cart: string },
-            { action: "/action/add-to-cart", method: "post" }
+            { action: "/action/update-cart", method: "post" }
         );
     }, [cart]);
 

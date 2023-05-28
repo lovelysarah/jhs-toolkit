@@ -19,13 +19,6 @@ enum Category {
   SUMMER
 }
 
-model Kit {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
-  shortId    String   @unique
-  created_by String
-  itemIds    String[] @db.ObjectId
-}
-
 model Item {
   id                  String   @id @default(auto()) @map("_id") @db.ObjectId
   shortId             String   @unique
@@ -38,15 +31,17 @@ model Item {
 }
 
 model User {
-  id           String       @id @default(auto()) @map("_id") @db.ObjectId
-  username     String       @unique
-  password     String
-  name         String
-  account_type ACCOUNT_TYPE
-  shed_cart    String[]
+  id               String       @id @default(auto()) @map("_id") @db.ObjectId
+  username         String       @unique
+  password         String
+  name             String
+  account_type     ACCOUNT_TYPE
+  shed_cart        String[]
+  shed_checked_out String[]
 }
 
 enum ACCOUNT_TYPE {
   ADMIN
   USER
+  GUEST
 }

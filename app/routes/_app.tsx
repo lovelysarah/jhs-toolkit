@@ -35,7 +35,7 @@ export default function AppLayoutRoute() {
                 <div className="theme-box-width row-center-start gap-5 theme-padding-y font-bold">
                     <p className="">
                         © 2022 John Howard Society South East New Brunswick. All
-                        rights. Developed by Sarah L. Robichaud
+                        rights.
                     </p>
                 </div>
             </div>

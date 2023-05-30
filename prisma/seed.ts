@@ -12,6 +12,8 @@ async function seed() {
         await db.user.create({
             data: {
                 ...user,
+                shed_cart: [],
+                shed_checked_out: [],
             },
         });
     });
@@ -19,7 +21,7 @@ async function seed() {
         await db.item.create({
             data: {
                 ...item,
-                quantity: Math.floor(Math.random() * 6),
+                quantity: Math.floor(Math.random() * 10) + 2,
                 note: "This is a test",
                 last_checked_out_by: "YESS Group",
             },

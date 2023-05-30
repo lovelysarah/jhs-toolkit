@@ -6,8 +6,10 @@ export async function getCartSession(request: Request) {
 
     const getCart = (): string[] => session.get(KEYS.SHED_CART) ?? [];
 
-    const updateCart = (cartItems: string[]) =>
+    const updateCart = (cartItems: string[]) => {
+        console.log("Updating cart cookie");
         session.set(KEYS.SHED_CART, cartItems);
+    };
 
     const commit = () => commitSession(session);
 

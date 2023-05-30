@@ -9,9 +9,13 @@ import {
 import clsx from "clsx";
 import invariant from "tiny-invariant";
 import { saveUserKit } from "~/api/cart";
-import { CollectionOfItems, getCollectionOfItems } from "~/api/item";
+import {
+    CollectionOfItems,
+    getAllItems,
+    getCollectionOfItems,
+} from "~/api/item";
 import { UserInfo, getUserInfoById } from "~/api/user";
-import { countItemsInCart } from "~/utils/cart";
+import { countItemsInCart, getAdjustedStock } from "~/utils/cart";
 import { getCartSession } from "~/utils/cart.server";
 import { getUserId } from "~/utils/session.server";
 
@@ -24,19 +28,21 @@ type LoaderData = {
 
 export const loader: LoaderFunction = async ({ request }) => {
     const id = await getUserId(request);
-
     // This scenerio should never happen
     invariant(id, "User ID is not defined");
 
     const cartSession = await getCartSession(request);
-    const cartItems = cartSession.getCart();
+    const cart = cartSession.getCart();
+    const items = await getCollectionOfItems(cart);
 
-    const itemCounts = countItemsInCart(cartItems);
+    const [adjustedStock, updatedCart] = getAdjustedStock(items, cart);
+
+    const itemCounts = countItemsInCart(updatedCart);
 
     const data: LoaderData = {
         user: await getUserInfoById(id),
-        items: await getCollectionOfItems(cartItems),
-        cartCount: cartItems.length,
+        items: items,
+        cartCount: items.length,
         counts: itemCounts,
     };
 

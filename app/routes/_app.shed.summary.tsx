@@ -1,12 +1,8 @@
-import { Category, Item } from "@prisma/client";
+import { Category } from "@prisma/client";
 import { LoaderFunction, SerializeFrom, json } from "@remix-run/node";
-import {
-    Form,
-    Link,
-    Outlet,
-    useFetcher,
-    useLoaderData,
-} from "@remix-run/react";
+import { Link, Outlet, useFetcher, useLoaderData } from "@remix-run/react";
+import { useRevalidator } from "@remix-run/react";
+
 import clsx from "clsx";
 import {
     Dispatch,
@@ -17,22 +13,30 @@ import {
     useRef,
     useState,
 } from "react";
-import { AllItemsResult, getAllItems } from "~/api/item";
-import { countItemsInCart } from "~/utils/cart";
+import { getAllItems } from "~/api/item";
+import { getAdjustedStock, countItemsInCart, AdjustedItem } from "~/utils/cart";
 import { getCartSession } from "~/utils/cart.server";
 
 type LoaderData = {
-    items: AllItemsResult;
-    cart: string[];
+    items: AdjustedItem[];
+    initialCart: string[];
     itemId: string | undefined;
 };
 
 export const loader: LoaderFunction = async ({ request, params }) => {
     const cartSession = await getCartSession(request);
+
+    const cart = cartSession.getCart();
+    const items = await getAllItems();
+
+    const [adjustedStock, updatedCart] = getAdjustedStock(items, cart);
+
+    // cartSession.updateCart(updatedCart);
+
     const data: LoaderData = {
         itemId: params.itemId,
-        cart: cartSession.getCart(),
-        items: await getAllItems(),
+        initialCart: updatedCart,
+        items: adjustedStock,
     };
 
     return json(data);
@@ -60,17 +64,15 @@ const CategoryHeader = ({ category }: CategoryHeaderProps) => {
 };
 
 type ItemCardProps = {
-    item: SerializeFrom<Item>;
+    item: SerializeFrom<AdjustedItem>;
     selectHandler: Dispatch<SetStateAction<string | undefined>>;
     expanded: boolean;
-    queued: number;
 } & PropsWithChildren;
 
 const ItemCard = ({
     item,
     selectHandler,
     expanded,
-    queued,
     children,
 }: ItemCardProps) => {
     // Toggles card expansion
@@ -93,19 +95,26 @@ const ItemCard = ({
                         rounded-md flex justify-between items-center `,
                         {
                             "btn-ghost":
-                                !expanded && item.quantity > 0 && queued === 0,
+                                !expanded &&
+                                item.quantity > 0 &&
+                                item.checked_out === 0,
                             "btn-ghost text-error":
                                 !expanded &&
                                 item.quantity === 0 &&
-                                queued === 0,
-                            "btn-success": !expanded && queued !== 0,
+                                item.checked_out === 0,
+                            "btn-success": !expanded && item.checked_out !== 0,
                             "btn-primary": expanded,
                         }
                     )}>
                     <span className="flex-1 font-bold">
-                        {queued > 0
-                            ? `${queued} ${item.name} in cart`
-                            : item.name}
+                        {item.checked_out > 0
+                            ? `${item.checked_out} ${item.name} in cart`
+                            : item.name}{" "}
+                        {item.adjusted && (
+                            <span className="badge ml-2">
+                                Auto-adjusted for stock
+                            </span>
+                        )}
                     </span>
                     <span className="flex-1 text-right md:text-left">
                         {item.quantity}
@@ -118,13 +127,40 @@ const ItemCard = ({
     );
 };
 
-type AwaitingCheckoutProps = { cart: JSX.Element[]; clearCart: () => void };
-const AwaitingCheckout = ({ cart, clearCart }: AwaitingCheckoutProps) => {
+type AwaitingCheckoutProps = {
+    cart: string[];
+    clearCart: () => void;
+    lastUpdated: Date;
+};
+const AwaitingCheckout = ({
+    cart,
+    clearCart,
+    lastUpdated,
+}: AwaitingCheckoutProps) => {
+    const itemCounts = countItemsInCart(cart);
+    const uniqueCart = [...new Set(cart)];
     return (
         <>
-            <h4 className="theme-text-h4 mb-2">Awaiting check out</h4>
+            <div className="flex justify-between items-center mb-2">
+                <h4 className="theme-text-h4">Awaiting check out</h4>
+                <span>
+                    Stocks last updated {lastUpdated.getHours()}:
+                    {lastUpdated.getMinutes()}:{lastUpdated.getSeconds()}
+                </span>
+            </div>
             <div className="flex justify-between items-start px-2 py-4 rounded-lg">
-                <div className="flex gap-2 basis-[70%] flex-wrap">{cart}</div>
+                <div className="flex gap-2 basis-[70%] flex-wrap">
+                    {uniqueCart.map((item) => {
+                        const count = itemCounts[item];
+                        return (
+                            <span
+                                className="badge badge-neutral badge-lg"
+                                key={item}>
+                                {count} {item}
+                            </span>
+                        );
+                    })}
+                </div>
                 <ul className="bg-base-100 rounded-lg">
                     <li>
                         <button
@@ -141,10 +177,16 @@ const AwaitingCheckout = ({ cart, clearCart }: AwaitingCheckoutProps) => {
 
 export default function ShedSummaryRoute() {
     // Get loader data
-    const { items, cart: initialCart, itemId } = useLoaderData<LoaderData>();
+    const revalidator = useRevalidator();
+
+    const { items, initialCart, itemId } = useLoaderData<LoaderData>();
 
     // Initialize cart
-    const [cart, setCart] = useState<string[]>(initialCart || []);
+    const [cart, setCart] = useState<typeof initialCart>(initialCart);
+
+    // Used to prevent a POST request if cart and inital cart are out of sync
+    // const [syncing, setSyncing] = useState(false);
+    const [lastUpdated, setLastUpdated] = useState(new Date());
 
     // Initialized selected item
     const [selected, setSelected] = useState<string | undefined>(itemId);
@@ -156,39 +198,25 @@ export default function ShedSummaryRoute() {
     const persistCartRef = useRef(persistCart);
     const mountRun = useRef(false);
 
-    const calculate = () => {
-        return items.map((item) => {
-            const modifier = cart.filter((i) => i === item.name).length;
-            return {
-                ...item,
-                quantity: item.quantity - modifier,
-                checked_out: modifier,
-            };
-        });
-    };
-
-    let calculated = useMemo(() => calculate(), [cart]);
-    const itemCounts = useMemo(() => countItemsInCart(cart), [cart]);
-
-    // Displays badges for each unique item in the cart with their count.
-    const uniqueCart = useMemo(
-        () =>
-            [...new Set(cart)].map((item) => {
-                const count = itemCounts[item];
-                return (
-                    <span
-                        className="badge badge-neutral badge-lg"
-                        key={item}>
-                        {count} {item}
-                    </span>
-                );
-            }),
-        [cart]
-    );
+    useEffect(() => {
+        const pollingRate = 5000;
+        const polling = setInterval(() => {
+            setLastUpdated(new Date());
+            revalidator.revalidate();
+        }, pollingRate);
+        return () => {
+            clearInterval(polling);
+        };
+    }, []);
 
     useEffect(() => {
-        calculated = calculate();
-    }, [cart]);
+        if (initialCart.length === cart.length) return;
+
+        setCart(initialCart);
+        setSyncing(true);
+    }, [initialCart]);
+
+    // Displays badges for each unique item in the cart with their count.
 
     useEffect(() => {
         persistCartRef.current = persistCart;
@@ -200,10 +228,10 @@ export default function ShedSummaryRoute() {
             return;
         }
 
-        if (!cart) return;
+        // if (syncing) return setSyncing(false);
+        console.log("POST");
 
         const string = JSON.stringify(cart);
-
         persistCartRef.current.submit(
             { cart: string },
             { action: "/action/update-cart", method: "post" }
@@ -211,28 +239,23 @@ export default function ShedSummaryRoute() {
     }, [cart]);
 
     return (
-        <div className="">
-            {cart.length > 0 && (
+        <>
+            {initialCart.length > 0 && (
                 <AwaitingCheckout
-                    cart={uniqueCart}
+                    cart={initialCart}
                     clearCart={() => setCart([])}
+                    lastUpdated={lastUpdated}
                 />
             )}
             <div className="flex flex-col gap-2">
-                {calculated.map((item, index) => {
+                {items.map((item) => {
                     let addHeader = false;
                     if (lastCategory !== item.category) {
                         addHeader = true;
                         lastCategory = item.category;
                     }
 
-                    const [checkedOut, setCheckedOut] = useState(0);
-                    useEffect(() => {
-                        setCheckedOut(item.checked_out);
-                    }, [cart]);
-
                     const addToCheckout = (toAdd: string) => {
-                        setCheckedOut((prev) => prev + 1);
                         item.quantity = item.quantity - 1;
                         setCart((prev) => [...prev, toAdd]);
                     };
@@ -243,17 +266,15 @@ export default function ShedSummaryRoute() {
                             (cartItem) => cartItem === toRemove
                         );
 
+                        // Updates state to updated array
                         // Removes first instance of the item to remove
-                        const removeFromArray = (prev: string[]) => {
+
+                        setCart((prev) => {
                             const copy = [...prev];
                             copy.splice(idx, 1);
                             return copy;
-                        };
+                        });
 
-                        // Updates state to updated array
-                        setCart(removeFromArray);
-
-                        setCheckedOut((prev) => prev - 1);
                         item.quantity = item.quantity + 1;
                     };
                     return (
@@ -262,15 +283,9 @@ export default function ShedSummaryRoute() {
                                 <CategoryHeader category={item.category} />
                             )}
 
-                            {/* {item.checked_out !== 0 && (
-                                <span className="btn">
-                                    {item.checked_out} in cart
-                                </span>
-                            )} */}
                             <ItemCard
                                 item={item}
                                 selectHandler={setSelected}
-                                queued={checkedOut}
                                 expanded={selected === item.shortId}>
                                 <div className="flex gap-2 w-full md:w-[30%]">
                                     {item.quantity !== 0 && (
@@ -282,7 +297,7 @@ export default function ShedSummaryRoute() {
                                             Add
                                         </button>
                                     )}
-                                    {checkedOut > 0 && (
+                                    {item.checked_out > 0 && (
                                         <button
                                             className="btn btn-error flex-1"
                                             onClick={(e) =>
@@ -302,6 +317,6 @@ export default function ShedSummaryRoute() {
                     );
                 })}
             </div>
-        </div>
+        </>
     );
 }

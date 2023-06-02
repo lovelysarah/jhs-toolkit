@@ -4,6 +4,7 @@ import { KEYS } from "~/constant/cookie.server";
 import { saveUserCart } from "~/api/cart";
 import { createCookieSessionStorage, redirect } from "@remix-run/node";
 import { User } from "@prisma/client";
+import { resolveNaptr } from "dns";
 
 // Verify that session secret is set
 const sessionSecret = process.env.SESSION_SECRET;
@@ -79,6 +80,23 @@ export const { commitSession, getSession, destroySession } =
         },
     });
 
+export const requireAdmin = async (
+    request: Request,
+    redirectTo: string = new URL(request.url).pathname
+) => {
+    const userId = await requireUser(request, redirectTo);
+
+    const user = await db.user.findUnique({
+        where: { id: userId },
+        select: { account_type: true, username: true, name: true },
+    });
+
+    if (!user || user.account_type !== "ADMIN")
+        throw new Response(, { status: 401 });
+
+    return user;
+};
+
 type CreateUserSessionFunction = (
     user: BasicUserInformation,
     redirectTo: string
@@ -152,7 +170,7 @@ export async function getUser(request: Request) {
     try {
         const user = await db.user.findUnique({
             where: { id: userId },
-            select: { id: true, username: true },
+            select: { id: true, username: true, account_type: true },
         });
 
         return user;

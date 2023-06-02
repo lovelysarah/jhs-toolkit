@@ -4,6 +4,7 @@ type NavbarLink = {
     title: string;
     href: string;
     private?: true;
+    admin?: true;
 };
 
 const navbarLinks: NavbarLink[] = [
@@ -16,12 +17,14 @@ const navbarLinks: NavbarLink[] = [
         private: true,
     },
     { title: "Sign in", href: "/auth" },
+    { title: "Admin", href: "/admin", private: true, admin: true },
 ];
 
 type NavbarProps = {
     isSignedIn: boolean;
+    accountType: string | undefined;
 };
-export default function Navbar({ isSignedIn }: NavbarProps) {
+export default function Navbar({ isSignedIn, accountType }: NavbarProps) {
     return (
         <header className="navbar my-4 bg-neutral rounded-lg px-4">
             <div className="flex-1">
@@ -38,6 +41,7 @@ export default function Navbar({ isSignedIn }: NavbarProps) {
                 <ul className="flex gap-8 px-1 items-center">
                     {navbarLinks.map((link) => {
                         if (
+                            (accountType !== "ADMIN" && link.admin) ||
                             (!isSignedIn && link.private) ||
                             (isSignedIn && link.href === "/auth")
                         )

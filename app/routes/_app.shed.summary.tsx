@@ -213,7 +213,7 @@ export default function ShedSummaryRoute() {
         if (initialCart.length === cart.length) return;
 
         setCart(initialCart);
-        setSyncing(true);
+        // setSyncing(true);
     }, [initialCart]);
 
     // Displays badges for each unique item in the cart with their count.

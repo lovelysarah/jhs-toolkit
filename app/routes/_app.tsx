@@ -1,29 +1,35 @@
+import { ACCOUNT_TYPE } from "@prisma/client";
 import { LoaderFunction, json } from "@remix-run/node";
 import { Outlet, useLoaderData } from "@remix-run/react";
 import Navbar from "~/components/Navbar";
-import { getUserId } from "~/utils/session.server";
+import { getUser, getUserId } from "~/utils/session.server";
 
 type LoaderData = {
     isSignedIn: boolean;
+    accountType: ACCOUNT_TYPE | undefined;
 };
 
 export const loader: LoaderFunction = async ({ request }) => {
-    const user = await getUserId(request);
+    const user = await getUser(request);
 
     const data: LoaderData = {
         isSignedIn: user ? true : false,
+        accountType: user?.account_type,
     };
 
     return json(data);
 };
 
 export default function AppLayoutRoute() {
-    const { isSignedIn } = useLoaderData<LoaderData>();
+    const { isSignedIn, accountType } = useLoaderData<LoaderData>();
     return (
         <main className="bg-base-100 w-full">
             <header className="col-center px-4">
                 <div className="theme-box-width">
-                    <Navbar isSignedIn={isSignedIn} />
+                    <Navbar
+                        isSignedIn={isSignedIn}
+                        accountType={accountType}
+                    />
                 </div>
             </header>
             <div className="flex justify-center items-start">

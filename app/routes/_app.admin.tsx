@@ -1,5 +1,6 @@
 import { LoaderFunction, json } from "@remix-run/node";
 import {
+    Link,
     isRouteErrorResponse,
     useLoaderData,
     useRouteError,
@@ -22,14 +23,23 @@ export default function AdminRoute() {
     const { user } = useLoaderData<LoaderData>();
     return (
         <>
-            <div id="content-heading">
+            <div
+                id="content-heading"
+                className="flex flex-col justify-between">
                 <h1 className="theme-text-h2 theme-text-gradient">
                     Admin Dashboard
                 </h1>
-                <h2 className="theme-text-h3">Welcome, {user.name}</h2>
+                <p className="theme-text-h4">Welcome, {user.name}</p>
             </div>
-            <ul>
-                <li>dev</li>
+            <div className="divider"></div>
+            <ul className="flex justify-between items-center">
+                <li>
+                    <Link
+                        className="link"
+                        to={"/admin/manage/users"}>
+                        Manage users
+                    </Link>
+                </li>
                 <li>dev</li>
                 <li>dev</li>
             </ul>
@@ -45,9 +55,11 @@ export function ErrorBoundary() {
         console.log(error);
         return (
             <div>
-                <h1>Oops</h1>
-                <p>Status: {error.status}</p>
-                <p>{error.data.message}</p>
+                <h1 className="theme-text-h1 theme-text-gradient">Oops</h1>
+                <p className="theme-text-h3">
+                    {error.status}{" "}
+                    <span className="theme-text-gradient">{error.data}</span>
+                </p>
             </div>
         );
     }
@@ -55,9 +67,9 @@ export function ErrorBoundary() {
     // Don't forget to typecheck with your own logic.
     // Any value can be thrown, not just errors!
     let errorMessage = "Unknown error";
-    if (isDefinitelyAnError(error)) {
-        errorMessage = error.message;
-    }
+    // if (isDefinitelyAnError(error)) {
+    // errorMessage = error.message;
+    // }
 
     return (
         <div>

@@ -92,7 +92,7 @@ export const requireAdmin = async (
     });
 
     if (!user || user.account_type !== "ADMIN")
-        throw new Response(, { status: 401 });
+        throw new Response("Unauthorized", { status: 401 });
 
     return user;
 };

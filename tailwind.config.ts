@@ -48,6 +48,7 @@ export default {
             },
             fontFamily: {
                 poppins: ["Poppins", "sans-serif"],
+                inters: ["Inter", "sans-serif"],
             },
             backgroundImage: {
                 gridDark:
@@ -69,7 +70,7 @@ export default {
 
                     neutral: "#1f2937",
 
-                    "base-100": "#e5e7eb",
+                    "base-100": "#eee",
 
                     info: "#7dd3fc",
 

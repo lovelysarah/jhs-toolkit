@@ -1,11 +1,17 @@
-import { LoaderFunction, json } from "@remix-run/node";
+import { LoaderFunction, V2_MetaFunction, json } from "@remix-run/node";
 import {
     Link,
+    Outlet,
     isRouteErrorResponse,
     useLoaderData,
+    useLocation,
     useRouteError,
 } from "@remix-run/react";
 import { requireAdmin } from "~/utils/session.server";
+
+export const meta: V2_MetaFunction = () => {
+    return [{ title: "JHS Toolkit | Admin" }];
+};
 
 type LoaderData = {
     user: Awaited<ReturnType<typeof requireAdmin>>;
@@ -26,23 +32,11 @@ export default function AdminRoute() {
             <div
                 id="content-heading"
                 className="flex flex-col justify-between">
-                <h1 className="theme-text-h2 theme-text-gradient">
-                    Admin Dashboard
-                </h1>
+                <h1 className="theme-text-h2">Admin Dashboard</h1>
                 <p className="theme-text-h4">Welcome, {user.name}</p>
             </div>
             <div className="divider"></div>
-            <ul className="flex justify-between items-center">
-                <li>
-                    <Link
-                        className="link"
-                        to={"/admin/manage/users"}>
-                        Manage users
-                    </Link>
-                </li>
-                <li>dev</li>
-                <li>dev</li>
-            </ul>
+            <Outlet />
         </>
     );
 }

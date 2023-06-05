@@ -1,7 +1,7 @@
 export type FormActionData<TFieldErrors, TFields> = {
-    formError?: string;
-    fieldErrors?: TFieldErrors;
-    fields?: TFields;
+    formError: string | null;
+    fieldErrors: TFieldErrors | null;
+    fields: TFields | null;
 };
 
 export type FieldErrors<TFields> = {

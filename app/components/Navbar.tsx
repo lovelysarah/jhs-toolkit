@@ -1,23 +1,36 @@
 import { NavLink } from "@remix-run/react";
+import {
+    Megaphone,
+    LayoutDashboard,
+    Package,
+    LogIn,
+    LogOut,
+} from "lucide-react";
 
 type NavbarLink = {
     title: string;
     href: string;
     private?: true;
     admin?: true;
+    icon: JSX.Element;
 };
 
 const navbarLinks: NavbarLink[] = [
-    { title: "Announcement", href: "/" },
-    { title: "Requests", href: "/requests", private: true },
-    { title: "Shed Inventory", href: "/shed", private: true },
+    { title: "Announcement", href: "/", icon: <Megaphone /> },
     {
-        title: "Guidelines",
-        href: "/guidelines",
+        title: "Shed Inventory",
+        href: "/shed",
         private: true,
+        icon: <Package />,
     },
-    { title: "Sign in", href: "/auth" },
-    { title: "Admin", href: "/admin", private: true, admin: true },
+    { title: "Sign in", href: "/auth", icon: <LogIn /> },
+    {
+        title: "Admin",
+        href: "/admin",
+        private: true,
+        admin: true,
+        icon: <LayoutDashboard />,
+    },
 ];
 
 type NavbarProps = {
@@ -26,11 +39,11 @@ type NavbarProps = {
 };
 export default function Navbar({ isSignedIn, accountType }: NavbarProps) {
     return (
-        <header className="navbar my-4 bg-neutral rounded-lg px-4">
+        <header className="navbar my-4 rounded-lg px-4">
             <div className="flex-1">
                 <NavLink
                     to="/"
-                    className="text-3xl font-bold text-base-100">
+                    className="text-3xl font-bold">
                     JHS{" "}
                     <span className="font-normal theme-text-gradient">
                         Toolkit
@@ -53,11 +66,12 @@ export default function Navbar({ isSignedIn, accountType }: NavbarProps) {
                                     to={link.href}
                                     className={({ isActive, isPending }) =>
                                         isPending
-                                            ? "text-neutral-content"
+                                            ? "text-base-content flex gap-2"
                                             : isActive
-                                            ? "text-neutral-content"
-                                            : "text-neutral-content/60 underline"
+                                            ? "text-base-content flex gap-2"
+                                            : "text-base-content/60 flex gap-2"
                                     }>
+                                    {link.icon}
                                     {link.title}
                                 </NavLink>
                             </li>
@@ -70,7 +84,8 @@ export default function Navbar({ isSignedIn, accountType }: NavbarProps) {
                                 method="post">
                                 <button
                                     type="submit"
-                                    className="link text-error">
+                                    className="flex gap-2 text-error">
+                                    <LogOut />
                                     Sign out
                                 </button>
                             </form>

@@ -2,6 +2,12 @@ import { LoaderFunction, json } from "@remix-run/node";
 import { NavLink, Outlet, useLoaderData, useLocation } from "@remix-run/react";
 import { getCartSession } from "~/utils/cart.server";
 import { requireUser } from "~/utils/session.server";
+import {
+    PackagePlus,
+    PackageMinus,
+    Activity,
+    ClipboardList,
+} from "lucide-react";
 
 type LoaderData = {
     cartCount: number;
@@ -26,12 +32,34 @@ type ShedMenuLink = {
     href: string;
     display: boolean;
     end?: true;
+    icon: JSX.Element;
 };
 const shedMenuLinks: ShedMenuLink[] = [
-    { text: "Activity", href: "/shed", display: true, end: true },
-    { text: "Summary", href: "/shed/summary", display: true },
-    { text: "Check-in", href: "/shed/check-in", display: true },
-    { text: "Check-out", href: "/shed/check-out", display: true },
+    {
+        text: "Activity",
+        href: "/shed",
+        display: true,
+        end: true,
+        icon: <Activity />,
+    },
+    {
+        text: "Summary",
+        href: "/shed/summary",
+        display: true,
+        icon: <ClipboardList />,
+    },
+    {
+        text: "Check-in",
+        href: "/shed/check-in",
+        display: true,
+        icon: <PackagePlus />,
+    },
+    {
+        text: "Check-out",
+        href: "/shed/check-out",
+        display: true,
+        icon: <PackageMinus />,
+    },
 ];
 
 export default function ManageShedRoute() {
@@ -43,7 +71,7 @@ export default function ManageShedRoute() {
     const title = location.pathname.split("/")[2];
     const formattedTitle = title
         ? title.slice(0, 1).toUpperCase() + title.slice(1)
-        : "Shed Management";
+        : "Overview";
 
     return (
         <section className="">
@@ -74,12 +102,13 @@ export default function ManageShedRoute() {
                                 to={link.href}
                                 className={({ isActive, isPending }) =>
                                     isPending
-                                        ? "btn btn-ghost"
+                                        ? "btn btn-ghost flex gap-2"
                                         : isActive
-                                        ? activeClasses
-                                        : passiveClasses
+                                        ? activeClasses + " flex gap-2"
+                                        : passiveClasses + " flex gap-2"
                                 }
                                 end={link.end}>
+                                {link.icon}
                                 {text}
                             </NavLink>
                         );

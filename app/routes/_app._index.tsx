@@ -1,7 +1,7 @@
 import type { V2_MetaFunction } from "@remix-run/node";
 
 export const meta: V2_MetaFunction = () => {
-    return [{ title: "New Remix App" }];
+    return [{ title: "JHS Toolkit | Announcements" }];
 };
 
 export default function Index() {

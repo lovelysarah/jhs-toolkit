@@ -1,8 +1,6 @@
 import { ACCOUNT_TYPE } from "@prisma/client";
 import { db } from "~/utils/db.server";
-import bcrypt from "bcryptjs";
 import { generateHash } from "~/utils/hash";
-import { type } from "os";
 
 export const getUserInfoById = async (id: string) => {
     return await db.user.findUnique({

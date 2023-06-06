@@ -18,7 +18,7 @@ export default function App() {
     return (
         <html
             lang="en"
-            data-theme="my-theme">
+            data-theme="mytheme">
             <head>
                 <meta charSet="utf-8" />
                 <meta
@@ -26,6 +26,7 @@ export default function App() {
                     content="width=device-width,initial-scale=1"
                 />
                 <Meta />
+                <title>JHS Toolkit</title>
                 <Links />
             </head>
             <body>

@@ -31,7 +31,8 @@ model Item {
 }
 
 model User {
-  id               String       @id @default(auto()) @map("_id") @db.ObjectId
+  id               String       @id @default(auto()) @db.ObjectId @map("_id")
+  short_id         String       @unique
   username         String       @unique
   password         String
   name             String

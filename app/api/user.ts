@@ -1,6 +1,8 @@
 import { ACCOUNT_TYPE } from "@prisma/client";
 import { db } from "~/utils/db.server";
 import bcrypt from "bcryptjs";
+import { generateHash } from "~/utils/hash";
+import { type } from "os";
 
 export const getUserInfoById = async (id: string) => {
     return await db.user.findUnique({
@@ -25,15 +27,14 @@ export const getAllUsers = async () => {
 
 export type AllUsers = Awaited<ReturnType<typeof getAllUsers>>;
 
-type CreateUserInput = {
+export type CreateUserInput = {
     name: string;
     username: string;
     password: string;
     accountType: string;
 };
 export const createUser = async (data: CreateUserInput) => {
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(data.password, salt);
+    const hashedPassword = await generateHash(data.password);
 
     return await db.user.create({
         data: {
@@ -52,3 +53,20 @@ export const createUser = async (data: CreateUserInput) => {
 };
 
 export type CreateUserResult = Awaited<ReturnType<typeof createUser>>;
+
+export const modifyUser = async (id: string, data: CreateUserInput) => {
+    let hashedPassword = null;
+    if (data.password) hashedPassword = await generateHash(data.password);
+
+    return await db.user.update({
+        where: { id },
+        data: {
+            name: data.name,
+            username: data.username,
+            account_type: data.accountType as ACCOUNT_TYPE,
+            ...(hashedPassword ? { password: hashedPassword } : {}),
+        },
+    });
+};
+
+export type ModifyUserResult = Awaited<ReturnType<typeof modifyUser>>;

@@ -42,7 +42,11 @@ export const action: ActionFunction = async ({ request }) => {
 
     // If the username or password is missing, return a 400 with an error message
     if (typeof username !== "string" || typeof password !== "string") {
-        return badRequest({ formError: "Username and password are required" });
+        return badRequest({
+            fieldErrors: null,
+            fields: null,
+            formError: "Username and password are required",
+        });
     }
 
     const fields = { username, password };
@@ -51,6 +55,7 @@ export const action: ActionFunction = async ({ request }) => {
 
     if (!authResponse.success) {
         return badRequest({
+            fieldErrors: null,
             fields,
             formError: `Username/Password combination is incorrect`,
         });

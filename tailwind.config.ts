@@ -60,6 +60,7 @@ export default {
     },
     daisyui: {
         themes: [
+            "black",
             {
                 mytheme: {
                     primary: "#0ea5e9",

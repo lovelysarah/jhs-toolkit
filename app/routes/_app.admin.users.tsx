@@ -2,6 +2,7 @@ import { LoaderFunction, json } from "@remix-run/node";
 import { Link, Outlet, useLoaderData, useLocation } from "@remix-run/react";
 import { AllUsers, getAllUsers } from "~/api/user";
 import { Unpacked } from "~/types/utils";
+import { Edit } from "lucide-react";
 
 type LoaderData = {
     users: AllUsers;
@@ -37,8 +38,8 @@ const TableRow = ({ user }: TableRowProps) => {
             <th>
                 <Link
                     to={`/admin/users/${user.id}`}
-                    className="btn btn-ghost btn-xs">
-                    MANAGE
+                    className="btn btn-ghost">
+                    <Edit />
                 </Link>
             </th>
         </tr>

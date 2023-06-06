@@ -7,3 +7,17 @@ export type FormActionData<TFieldErrors, TFields> = {
 export type FieldErrors<TFields> = {
     [K in keyof TFields]?: TFields[K] | undefined;
 };
+
+export type CreateUserFields = {
+    name: string;
+    username: string;
+    password: string;
+    confirmPassword: string;
+    accountType: string;
+};
+export type CreateUserFieldErrors = FieldErrors<CreateUserFields>;
+
+export type CreateUserActionData = FormActionData<
+    CreateUserFieldErrors,
+    CreateUserFields
+>;

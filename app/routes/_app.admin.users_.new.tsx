@@ -1,50 +1,13 @@
 import { ActionFunction, json, redirect } from "@remix-run/node";
 import { Form, Link, useActionData, useNavigate } from "@remix-run/react";
-import { FieldErrors, FormActionData } from "~/types/form";
-import { badRequest } from "~/utils/request.server";
-import { ACCOUNT_TYPE } from "@prisma/client";
+import { CreateUserActionData } from "~/types/form";
 import { FormAlert } from "~/components/FormAlert";
 import { createUser } from "~/api/user";
-import { db } from "~/utils/db.server";
-
-type CreateUserFields = {
-    name: string;
-    username: string;
-    password: string;
-    confirmPassword: string;
-    accountType: string;
-};
-
-type CreateUserFieldErrors = FieldErrors<CreateUserFields>;
-type SignInActionData = FormActionData<CreateUserFieldErrors, CreateUserFields>;
-
-function validateName(name: string) {
-    if (name.length < 1) return "Name is required";
-    if (name.length < 2) return "Name must be at least 2 characters long";
-}
-
-function validateUsername(username: string) {
-    if (username.length < 1) return "Username is required";
-    if (username.length < 5)
-        return "Username must be at least 5 characters long";
-}
-
-function validatePassword(password: string, confirmPassword: string) {
-    if (password.length < 1) return "Password is required";
-    if (password !== confirmPassword) return "Passwords do not match";
-
-    if (password.length < 6)
-        return "Password must be at least 6 characters long";
-}
-
-function ValidateAccountType(accountType: string) {
-    // Verify if account type is a value in the ACCOUNT_TYPE enum
-    if (!Object.values(ACCOUNT_TYPE).includes(accountType as ACCOUNT_TYPE)) {
-        return "Please select an account type";
-    }
-}
+import { validateUserCreationForm } from "~/helper/UserFormValidator";
+import invariant from "tiny-invariant";
 
 export const action: ActionFunction = async ({ request }) => {
+    // Get the form data
     const form = await request.formData();
     const name = form.get("name");
     const username = form.get("username");
@@ -52,111 +15,131 @@ export const action: ActionFunction = async ({ request }) => {
     const confirmPassword = form.get("confirmPassword");
     const accountType = form.get("accountType") ?? "";
 
-    // If any of the fields are missing, return a 400 with an error message
-    if (
-        typeof name !== "string" ||
-        typeof username !== "string" ||
-        typeof password !== "string" ||
-        typeof confirmPassword !== "string" ||
-        typeof accountType !== "string"
-    ) {
-        return badRequest<SignInActionData>({
-            fieldErrors: null,
-            fields: null,
-            formError: "Fields are required",
-        });
-    }
-
     // Validate the fields
-    const fields = { name, username, password, confirmPassword, accountType };
-
-    const fieldErrors: CreateUserFieldErrors = {
-        name: validateName(name),
-        username: validateUsername(username),
-        password: validatePassword(password, confirmPassword),
-        accountType: ValidateAccountType(accountType),
-    };
-
-    if (Object.values(fieldErrors).some(Boolean)) {
-        return badRequest<SignInActionData>({
-            fieldErrors,
-            fields,
-            formError: "Fields are invalid",
-        });
-    }
-    console.log({ fields });
-
-    const userExists = await db.user.findFirst({
-        where: { username },
+    const validatedData = await validateUserCreationForm({
+        name,
+        username,
+        password,
+        confirmPassword,
+        accountType,
     });
 
-    if (userExists) {
-        return badRequest({
-            fieldErrors: null,
-            fields,
-            formError: `User with username ${username} already exists`,
-        });
-    }
+    const isValid = "name" in validatedData;
 
-    const data = { name, username, password, accountType };
-    const createdUser = await createUser(data);
+    if (!isValid) return validatedData;
 
-    console.log({ createdUser });
+    // Create the user
+    const createdUser = await createUser(validatedData);
 
-    // return json({ success: true }, { status: 201 });
+    // Redirect to the user page
     return redirect("/admin/users");
-    // Logic here to create the user
+};
+
+type NameInputProps = {
+    defaultName: string | undefined;
+    condition: string | undefined;
+};
+const NameInput = ({ defaultName, condition }: NameInputProps): JSX.Element => {
+    return (
+        <>
+            <input
+                name="name"
+                defaultValue={defaultName}
+                type="text"
+                className="input input-bordered"
+                placeholder="Name"
+            />
+            <FormAlert
+                condition={condition}
+                variant="warning"
+            />
+        </>
+    );
+};
+type UsernameInputProps = {
+    defaultUsername: string | undefined;
+    condition: string | undefined;
+};
+const UsernameInput = ({
+    defaultUsername,
+    condition,
+}: UsernameInputProps): JSX.Element => {
+    return (
+        <>
+            <input
+                name="username"
+                defaultValue={defaultUsername}
+                type="text"
+                className="input input-bordered"
+                placeholder="Username"
+            />
+            <FormAlert
+                condition={condition}
+                variant="warning"
+            />
+        </>
+    );
+};
+
+type PasswordInputProps = {
+    defaultPassword: string | undefined;
+    defaultConfirmPassword: string | undefined;
+    condition: string | undefined;
+};
+const PasswordInput = ({
+    defaultPassword,
+    defaultConfirmPassword,
+    condition,
+}: PasswordInputProps) => {
+    return (
+        <>
+            <input
+                name="password"
+                type="password"
+                defaultValue={defaultPassword}
+                className="input input-bordered"
+                placeholder="Password"
+            />
+            <input
+                name="confirmPassword"
+                type="password"
+                defaultValue={defaultConfirmPassword}
+                className="input input-bordered"
+                placeholder="Confirm password"
+            />
+            <FormAlert
+                condition={condition}
+                variant="warning"
+            />
+        </>
+    );
 };
 
 export default function AdminCreateUserRoute() {
-    const action = useActionData<SignInActionData>();
+    const action = useActionData<CreateUserActionData>();
 
     return (
         <div>
-            <h1 className="theme-text-h4 mb-2">Create a new user</h1>
+            <h1 className="theme-text-h3 mb-2">Create a new user</h1>
             <Form
                 className="flex flex-col gap-2"
                 method="POST">
-                <input
-                    name="name"
-                    defaultValue={action?.fields?.name}
-                    type="text"
-                    className="input input-bordered"
-                    placeholder="Name"
-                />
-                <FormAlert
+                <span className="theme-text-h4">Enter information</span>
+                <NameInput
+                    defaultName={action?.fields?.name}
                     condition={action?.fieldErrors?.name}
-                    variant="warning"
-                />
-                <input
-                    name="username"
-                    defaultValue={action?.fields?.username}
-                    type="text"
-                    className="input input-bordered"
-                    placeholder="Username"
-                />
-                <FormAlert
+                />{" "}
+                <UsernameInput
+                    defaultUsername={action?.fields?.username}
                     condition={action?.fieldErrors?.username}
-                    variant="warning"
                 />
-                <input
-                    name="password"
-                    type="password"
-                    defaultValue={action?.fields?.password}
-                    className="input input-bordered"
-                    placeholder="Password"
-                />
-                <input
-                    name="confirmPassword"
-                    type="password"
-                    defaultValue={action?.fields?.confirmPassword}
-                    className="input input-bordered"
-                    placeholder="Confirm password"
-                />
-                <FormAlert
+                <span className="theme-text-h4">Choose a password</span>
+                <PasswordInput
+                    defaultPassword={action?.fields?.password}
+                    defaultConfirmPassword={action?.fields?.confirmPassword}
                     condition={action?.fieldErrors?.password}
-                    variant="warning"
                 />
+                <span className="theme-text-h4">Select an account type</span>
                 <select
                     name="accountType"
                     defaultValue={action?.fields?.accountType || "DEFAULT"}

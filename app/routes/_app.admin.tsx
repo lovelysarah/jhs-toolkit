@@ -7,6 +7,7 @@ import {
     useLocation,
     useRouteError,
 } from "@remix-run/react";
+import clsx from "clsx";
 import { requireAdmin } from "~/utils/session.server";
 
 export const meta: V2_MetaFunction = () => {
@@ -24,9 +25,47 @@ export const loader: LoaderFunction = async ({ request }) => {
     };
     return json(data);
 };
+const BreadCrumbs = ({ paths }: { paths: string[] }) => (
+    <div className="breadcrumbs">
+        <ul>
+            <li>
+                <Link
+                    prefetch="intent"
+                    to="/admin"
+                    className={clsx({
+                        "theme-text-gradient font-bold": paths.length === 0,
+                    })}>
+                    Dashboard
+                </Link>
+            </li>
+            {paths.map((path, index, arr) => {
+                const last = index === arr.length - 1;
+
+                return (
+                    <li key={path}>
+                        {last ? (
+                            <span className="theme-text-gradient font-bold">
+                                {path}
+                            </span>
+                        ) : (
+                            <Link to={path.toLowerCase()}>{path}</Link>
+                        )}
+                    </li>
+                );
+            })}
+        </ul>
+    </div>
+);
 
 export default function AdminRoute() {
     const { user } = useLoaderData<LoaderData>();
+    const { pathname } = useLocation();
+
+    const paths = pathname
+        .split("/")
+        .map((p) => p.slice(0, 1).toUpperCase() + p.slice(1))
+        .slice(2);
+
     return (
         <>
             <div
@@ -35,7 +74,8 @@ export default function AdminRoute() {
                 <h1 className="theme-text-h2">Admin Dashboard</h1>
                 <p className="theme-text-h4">Welcome, {user.name}</p>
             </div>
-            <div className="divider"></div>
+            <BreadCrumbs paths={paths} />
+            <div className="divider mt-0"></div>
             <Outlet />
         </>
     );

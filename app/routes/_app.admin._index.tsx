@@ -5,7 +5,7 @@ export default function AdminIndexRoute() {
         <ul className="flex justify-between items-center">
             <li>
                 <Link
-                    className="link"
+                    className="btn btn-primary"
                     to={"/admin/users"}>
                     Manage users
                 </Link>

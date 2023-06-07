@@ -34,7 +34,7 @@ const TableRow = ({ user }: TableRowProps) => {
                     </div>
                 </div>
             </td>
-            <td>{user.account_type}</td>
+            <td className="hidden sm:table-cell">{user.account_type}</td>
             <th>
                 <Link
                     to={`/admin/users/${user.id}`}
@@ -50,14 +50,28 @@ export default function AdminIndexRoute() {
     const { users } = useLoaderData<LoaderData>();
     const location = useLocation();
 
+    const smallList = ["Name"];
+    const largeList = ["Name", "Account Type"];
+
     return (
-        <section className="flex gap-4 items-start">
-            <div className="overflow-x-auto basis-3/5">
+        <section className="flex flex-col-reverse md:flex-row gap-4 items-start">
+            <div className="overflow-x-auto w-full basis-full md:basis-3/5">
                 <table className="table w-full">
                     {/* head */}
-                    <thead>
+                    <thead className="hidden sm:table-header-group">
                         <tr>
-                            {["Name", "Account Type"].map((th) => (
+                            {largeList.map((th) => (
+                                <th
+                                    className="bg-base-100"
+                                    key={th}>
+                                    {th}
+                                </th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <thead className="table-header-group sm:hidden">
+                        <tr>
+                            {smallList.map((th) => (
                                 <th
                                     className="bg-base-100"
                                     key={th}>
@@ -89,7 +103,7 @@ export default function AdminIndexRoute() {
                     </tfoot>
                 </table>
             </div>
-            <div className="top-4 sticky basis-2/5">
+            <div className="top-0 py-4 sticky basis-full md:basis-2/5 bg-base-100 z-20 md:z-0 w-full border-b-2 border-base-300 md:border-b-0">
                 <Outlet />
             </div>
         </section>

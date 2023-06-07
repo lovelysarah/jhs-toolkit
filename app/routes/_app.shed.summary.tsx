@@ -52,7 +52,7 @@ const CategoryHeader = ({ category }: CategoryHeaderProps) => {
             <h3 className="theme-text-h3 mt-4">{category.replace("_", " ")}</h3>
 
             <div className="flex">
-                <div className="py-2 px-4 flex items-center basis-full sm:basis-[70%]">
+                <div className="py-2 px-4 flex items-center basis-full sm:basis-[50%] md:basis-[70%]">
                     <span className="flex-1">Name</span>
                     <span className="flex-1 text-right md:text-left">
                         Quantity
@@ -84,8 +84,8 @@ const ItemCard = ({
     };
 
     return (
-        <div className={`flex flex-col md:flex-row md:items-start gap-2`}>
-            <div className="basis-full sm:basis-[70%]">
+        <div className={`flex flex-col sm:flex-row sm:items-start gap-2`}>
+            <div className="basis-full sm:basis-[50%] md:basis-[70%]">
                 <Link
                     key={item.name}
                     to={expanded ? "/shed/summary" : item.shortId}
@@ -106,7 +106,7 @@ const ItemCard = ({
                             "btn-primary": expanded,
                         }
                     )}>
-                    <span className="flex-1 font-bold">
+                    <span className="basis-[80%] md:flex-1 font-bold">
                         {item.checked_out > 0
                             ? `${item.checked_out} ${item.name} in cart`
                             : item.name}{" "}
@@ -116,7 +116,7 @@ const ItemCard = ({
                             </span>
                         )}
                     </span>
-                    <span className="flex-1 text-right md:text-left">
+                    <span className="basis-[20%] md:flex-1 text-right md:text-left">
                         {item.quantity}
                     </span>
                 </Link>
@@ -149,7 +149,7 @@ const AwaitingCheckout = ({
                 </span>
             </div>
             <div className="flex justify-between items-start px-2 py-4 rounded-lg">
-                <div className="flex gap-2 basis-[70%] flex-wrap">
+                <div className="flex gap-2 sm:basis-[50%] md:basis-[70%] flex-wrap">
                     {uniqueCart.map((item) => {
                         const count = itemCounts[item];
                         return (
@@ -287,7 +287,7 @@ export default function ShedSummaryRoute() {
                                 item={item}
                                 selectHandler={setSelected}
                                 expanded={selected === item.shortId}>
-                                <div className="flex gap-2 w-full md:w-[30%]">
+                                <div className="flex gap-2 w-full sm:w-[50%] md:w-[30%]">
                                     {item.quantity !== 0 && (
                                         <button
                                             className="btn btn-neutral flex-1"

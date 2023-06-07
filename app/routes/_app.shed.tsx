@@ -75,11 +75,11 @@ export default function ManageShedRoute() {
 
     return (
         <section className="">
-            <div className="flex gap-4 my-4 justify-between items-center">
-                <h1 className="theme-text-h2 theme-text-gradient">
+            <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-4 gap-4 sticky top-14 md:static bg-base-100/95 p-4 border border-base-300 rounded-2xl mx-[-1rem] md:border-0">
+                <h1 className="theme-text-h2 theme-text-gradient hidden md:block">
                     {formattedTitle}
                 </h1>
-                <nav className="menu menu-horizontal gap-4">
+                <nav className="flex gap-4 justify-around flex-wrap">
                     {shedMenuLinks.map((link) => {
                         const text =
                             link.text === "Check-out"
@@ -91,10 +91,10 @@ export default function ManageShedRoute() {
 
                         const passiveClasses =
                             cartCount > 0
-                                ? "btn btn-ghost"
+                                ? "btn btn-ghost bg-base-100"
                                 : checkoutRoute
-                                ? "btn btn-ghost btn-disabled opacity-50"
-                                : "btn btn-ghost";
+                                ? "btn btn-ghost bg-base-100 btn-disabled opacity-50"
+                                : "btn btn-ghost bg-base-100";
 
                         return (
                             <NavLink
@@ -109,7 +109,9 @@ export default function ManageShedRoute() {
                                 }
                                 end={link.end}>
                                 {link.icon}
-                                {text}
+                                <span className="hidden sm:inline-block">
+                                    {text}
+                                </span>
                             </NavLink>
                         );
                     })}

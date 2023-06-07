@@ -38,7 +38,7 @@ export default function AppLayoutRoute() {
                 </div>
             </div>
             <div className="col-center px-8 xl:px-0">
-                <div className="theme-box-width row-center-start gap-5 theme-padding-y font-bold">
+                <div className="theme-box-width row-center-start gap-5 font-bold mt-4 pb-32 md:pb-4">
                     <p className="">
                         © 2022 John Howard Society South East New Brunswick. All
                         rights.

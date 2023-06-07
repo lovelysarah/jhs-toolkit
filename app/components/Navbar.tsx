@@ -39,19 +39,11 @@ type NavbarProps = {
 };
 export default function Navbar({ isSignedIn, accountType }: NavbarProps) {
     return (
-        <header className="navbar my-4 rounded-lg px-4">
-            <div className="flex-1">
-                <NavLink
-                    to="/"
-                    className="text-3xl font-bold">
-                    JHS{" "}
-                    <span className="font-normal theme-text-gradient">
-                        Toolkit
-                    </span>
-                </NavLink>
-            </div>
-            <div className="flex-none">
-                <ul className="flex gap-8 px-1 items-center">
+        <>
+            <nav className="fixed bottom-4 bg-base-100/90 left-4 right-4 md:hidden z-40 rounded-2xl border border-base-300 ">
+                {/* MOBILE */}
+
+                <ul className="flex px-1 justify-around items-center">
                     {navbarLinks.map((link) => {
                         if (
                             (accountType !== "ADMIN" && link.admin) ||
@@ -66,13 +58,15 @@ export default function Navbar({ isSignedIn, accountType }: NavbarProps) {
                                     to={link.href}
                                     className={({ isActive, isPending }) =>
                                         isPending
-                                            ? "text-base-content flex gap-2"
+                                            ? "text-base-content flex gap-2 p-8"
                                             : isActive
-                                            ? "text-base-content flex gap-2"
-                                            : "text-base-content/60 flex gap-2"
+                                            ? "text-base-content flex gap-2 p-8"
+                                            : "text-base-content/60 flex gap-2 p-8"
                                     }>
                                     {link.icon}
-                                    {link.title}
+                                    <span className="hidden sm:inline">
+                                        {link.title}
+                                    </span>
                                 </NavLink>
                             </li>
                         );
@@ -84,15 +78,73 @@ export default function Navbar({ isSignedIn, accountType }: NavbarProps) {
                                 method="post">
                                 <button
                                     type="submit"
-                                    className="flex gap-2 text-error">
+                                    className="flex gap-2 p-8 text-error">
                                     <LogOut />
-                                    Sign out
+                                    <span className="hidden sm:inline">
+                                        Sign out
+                                    </span>
                                 </button>
                             </form>
                         </li>
                     )}
                 </ul>
-            </div>
-        </header>
+            </nav>
+            <header className="navbar my-4 rounded-lg px-4">
+                {/* DESKTOP */}
+                <div className="flex-1">
+                    <NavLink
+                        to="/"
+                        className="text-3xl font-bold">
+                        JHS{" "}
+                        <span className="font-normal theme-text-gradient">
+                            Toolkit
+                        </span>
+                    </NavLink>
+                </div>
+                <div className="flex-none hidden md:block">
+                    <ul className="flex gap-8 px-1 items-center">
+                        {navbarLinks.map((link) => {
+                            if (
+                                (accountType !== "ADMIN" && link.admin) ||
+                                (!isSignedIn && link.private) ||
+                                (isSignedIn && link.href === "/auth")
+                            )
+                                return;
+
+                            return (
+                                <li key={link.href}>
+                                    <NavLink
+                                        to={link.href}
+                                        className={({ isActive, isPending }) =>
+                                            isPending
+                                                ? "text-base-content flex gap-2"
+                                                : isActive
+                                                ? "text-base-content flex gap-2"
+                                                : "text-base-content/60 flex gap-2"
+                                        }>
+                                        {link.icon}
+                                        {link.title}
+                                    </NavLink>
+                                </li>
+                            );
+                        })}
+                        {isSignedIn && (
+                            <li>
+                                <form
+                                    action="/logout"
+                                    method="post">
+                                    <button
+                                        type="submit"
+                                        className="flex gap-2 text-error">
+                                        <LogOut />
+                                        Sign out
+                                    </button>
+                                </form>
+                            </li>
+                        )}
+                    </ul>
+                </div>
+            </header>
+        </>
     );
 }

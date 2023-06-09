@@ -8,7 +8,7 @@ export const FormAlert = ({
     condition: unknown;
     variant: "success" | "warning" | "error";
 }) => {
-    if (typeof condition !== "string") return null;
+    if (typeof condition !== "string" || condition.length < 1) return null;
 
     return (
         <span

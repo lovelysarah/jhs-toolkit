@@ -1,25 +1,31 @@
 import { ACCOUNT_TYPE } from "@prisma/client";
-import { CreateUserActionData, CreateUserFieldErrors } from "~/types/form";
+import { TypedResponse } from "@remix-run/node";
+import {
+    CreateUserActionData,
+    CreateUserFieldErrors,
+    CreateUserFields,
+} from "~/types/form";
 import { db } from "~/utils/db.server";
 import { badRequest } from "~/utils/request.server";
 
 const validate = {
     name: (name: string) => {
         if (name.length < 1) return "Name is required";
-        if (name.length < 2) return "Name must be at least 2 characters long";
+        if (name.length < 2 || name.length > 22)
+            return "Name must be between 2-22 characters";
     },
     username: (username: string) => {
         if (username.length < 1) return "Username is required";
-        if (username.length < 5)
-            return "Username must be at least 5 characters long";
+        if (username.length < 5 || username.length > 22)
+            return "Username must be between 5-22 characters";
     },
     password: (password: string, confirmPassword?: string) => {
         if (password.length < 1) return "Password is required";
         if (confirmPassword && password !== confirmPassword)
             return "Passwords do not match";
 
-        if (password.length < 6)
-            return "Password must be at least 6 characters long";
+        if (password.length < 6 || password.length > 64)
+            return "Password must be between 6-64 characters";
     },
     accountType: (accountType: string) => {
         // Verify if account type is a value in the ACCOUNT_TYPE enum
@@ -37,6 +43,47 @@ type UserFormData = {
     password: unknown;
     confirmPassword: unknown;
     accountType: unknown;
+};
+
+type TypeValidationFailure = {
+    type: "TYPE_VALIDATION_FAILURE";
+    error: TypedResponse<CreateUserActionData>;
+};
+
+type TypeValidationSuccess<T> = {
+    type: "TYPE_VALIDATION_SUCCESS";
+    data: T;
+};
+
+type TypeValidationResults<T> =
+    | TypeValidationSuccess<T>
+    | TypeValidationFailure;
+
+type UpdateFormValidationFailure = {
+    type: "UPDATE_FORM_VALIDATION_FAILURE";
+    error: TypedResponse<CreateUserActionData>;
+};
+
+const validateTypes = <T extends Record<string, unknown>>(
+    obj: T
+): TypeValidationResults<{ [key in keyof T]: string }> => {
+    const newObj = {} as { [key in keyof T]: string };
+    let failed = false;
+
+    const error = badRequest<CreateUserActionData>({
+        fieldErrors: null,
+        fields: null,
+        formError: "Fields are required",
+    });
+
+    Object.entries(obj).forEach(([key, value]) => {
+        if (typeof value !== "string") return (failed = true);
+        newObj[key as keyof T] = value as string;
+    });
+
+    return failed
+        ? { type: "TYPE_VALIDATION_FAILURE", error }
+        : { type: "TYPE_VALIDATION_SUCCESS", data: newObj };
 };
 
 export const validateUserCreationForm = async (data: UserFormData) => {
@@ -78,68 +125,54 @@ export const validateUserCreationForm = async (data: UserFormData) => {
             formError: "Fields are invalid",
         });
     }
-    const userExists = await db.user.findFirst({
-        where: { username },
-    });
 
-    if (userExists) {
-        return badRequest({
-            fieldErrors: null,
-            fields,
-            formError: `User with username ${username} already exists`,
-        });
-    }
-
-    return { name, username, password, accountType };
+    return { name, username, password, confirmPassword, accountType };
 };
 
-const VALID_FIELDS = ["name", "username", "password", "accountType"] as const;
+export const validateUserUpdateForm = async (
+    data: UserFormData,
+    userId: string
+) => {
+    const fieldValidationResults = validateTypes(data);
 
-type UserFieldList = typeof VALID_FIELDS;
-type UserField = UserFieldList[number];
+    if (fieldValidationResults.type === "TYPE_VALIDATION_FAILURE") {
+        return fieldValidationResults.error;
+    }
 
-export const validateUserUpdateForm = async (data: UserFormData) => {
-    const isValidKey = (value: string): value is UserField => {
-        return VALID_FIELDS.includes(value as UserField);
-    };
-    const removeEmptyFields = (obj: { [key: string]: unknown }) => {
-        // Remove empty fields from the object
-        return Object.entries(obj).reduce((acc, [key, value]) => {
-            // If the value is not an empty string and is a string,
-            // add it to the accumulator
-            if (key === "confirmPassword") return acc;
-            if (value !== "" && typeof value === "string" && isValidKey(key))
-                acc[key] = value;
+    const { name, username, password, confirmPassword, accountType } =
+        fieldValidationResults.data;
 
-            return acc;
-        }, {} as { [key in UserField]: string });
-    };
+    const fieldErrors = {
+        name: validate["name"](name),
+        username: validate["username"](username),
 
-    const filteredData = removeEmptyFields(data);
-
-    const fieldErrors = Object.entries(filteredData).reduce(
-        (acc, [key, value]) => {
-            if (isValidKey(key)) acc[key] = validate[key](value);
-            return acc;
-        },
-        {} as { [key in UserField]: string | undefined }
-    );
-
-    // Horrible
-    const fields = {
-        ...filteredData,
-        confirmPassword: data.confirmPassword as string,
+        // If password is changed, validate it
+        password:
+            password.length < 1
+                ? validate["password"](password, confirmPassword)
+                : undefined,
+        accountType: validate["accountType"](accountType),
     };
 
     if (Object.values(fieldErrors).some(Boolean)) {
         return badRequest<CreateUserActionData>({
             fieldErrors,
-            fields,
+            fields: fieldValidationResults.data,
             formError: "Fields are invalid",
         });
     }
 
-    const { name, username, accountType, password } = fields;
+    const userExists = await db.user.findFirst({
+        where: { username: username },
+    });
 
-    return { name, username, password, accountType };
+    if (userExists && userExists.id !== userId) {
+        return badRequest<CreateUserActionData>({
+            fieldErrors: null,
+            fields: fieldValidationResults.data,
+            formError: `User with username ${username} already exists`,
+        });
+    }
+
+    return {};
 };

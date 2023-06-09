@@ -6,15 +6,18 @@ import {
     isRouteErrorResponse,
     useActionData,
     useLoaderData,
+    useNavigation,
     useRouteError,
     useSubmit,
+    useTransition,
 } from "@remix-run/react";
 import clsx from "clsx";
 import { error } from "console";
-import { AlertTriangle, CornerDownLeft, Trash } from "lucide-react";
+import { AlertTriangle, Trash } from "lucide-react";
+import { type } from "os";
 import { useEffect, useRef, useState } from "react";
 import invariant from "tiny-invariant";
-import { UserInfo, getUserInfoById, modifyUSer, modifyUser } from "~/api/user";
+import { UserInfo, getUserInfoById, modifyUser } from "~/api/user";
 import { FormAlert } from "~/components/FormAlert";
 import {
     validateUserCreationForm,
@@ -49,44 +52,39 @@ export const loader: LoaderFunction = async ({ request, params }) => {
 
 export const action: ActionFunction = async ({ request, params }) => {
     invariant(params.id, "Expected user ID!");
-    const form = await request.formData();
-    const name = form.get("name");
-    const username = form.get("username");
-    const accountType = form.get("accountType");
-    const password = form.get("password");
-    const confirmPassword = form.get("confirmPassword");
-    console.log({ name, username, accountType, password, confirmPassword });
 
-    const fields = { name, username, accountType, password, confirmPassword };
-    const validatedData = await validateUserUpdateForm({
-        name,
-        username,
-        accountType,
-        password,
-        confirmPassword,
+    const user = await db.user.findFirst({
+        where: { id: params.id },
     });
 
-    console.log({ validatedData });
-    const isValid = "name" in validatedData;
-    if (!isValid) return validatedData;
-
-    const userExists = await db.user.findFirst({
-        where: { username: validatedData.username },
-    });
-
-    if (userExists) {
-        return badRequest<CreateUserActionData>({
-            fieldErrors: null,
-            fields: {
-                ...validatedData,
-                confirmPassword: confirmPassword as string,
-            },
-            formError: `User with username ${username} already exists`,
-        });
+    if (!user) {
+        throw new Error("Something went wrong, user not found");
     }
 
-    const modifiedUser = await modifyUser(params.id, validatedData);
-    console.log({ modifiedUser });
+    const form = await request.formData();
+    const name = form.get("name") || user.name;
+    const username = form.get("username") || user.username;
+    const accountType = form.get("accountType") || user.account_type;
+    const password = form.get("password");
+    const confirmPassword = form.get("confirmPassword");
+
+    const validationResult = await validateUserUpdateForm(
+        {
+            name,
+            username,
+            accountType,
+            password,
+            confirmPassword,
+        },
+        params.id
+    );
+
+    await modifyUser(params.id, {
+        username,
+        name,
+        accountType: accountType as ACCOUNT_TYPE,
+        password: password as string,
+    });
 
     return json({ success: true }, { status: 201 });
 };
@@ -94,25 +92,33 @@ export const action: ActionFunction = async ({ request, params }) => {
 export default function AdminManageUserRoute() {
     const { user } = useLoaderData<LoaderData>();
     const action = useActionData<CreateUserActionData>();
+    const navigation = useNavigation();
 
-    console.log(action);
     if (!user) {
         throw new Error("User not found");
     }
 
     const submit = useSubmit();
-    const [clientFormError, setClientFormError] = useState("");
 
-    const [name, setName] = useState(user.name);
-    const [username, setUsername] = useState(user.username);
-    const [selected, setSelected] = useState(user.account_type);
+    const [formSubmitted, setFormSubmitted] = useState(false);
 
+    // Has the form been modified
     const [modified, setModified] = useState(false);
 
+    // Error from the client side validation
+    const [clientFormError, setClientFormError] = useState("");
+
+    // Basic info
+    const [name, setName] = useState(user.name);
+    const [username, setUsername] = useState(user.username);
+    const [selected, setSelected] = useState<ACCOUNT_TYPE>(user.account_type);
+
+    // Passowrd form
     const [resetPassword, setResetPassword] = useState(false);
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
 
+    // Modal reference
     const confirmDelete = useRef<HTMLDialogElement>(null);
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -120,7 +126,7 @@ export default function AdminManageUserRoute() {
 
         // Reset client form error
         setClientFormError("");
-        console.log({ tager: e.target });
+        setFormSubmitted(false);
 
         // Validata form data
         if (!name || !username || !selected)
@@ -129,15 +135,35 @@ export default function AdminManageUserRoute() {
         if (resetPassword && password !== confirmPassword)
             return setClientFormError("Passwords do not match.");
 
-        const formData = new FormData(e.target as HTMLFormElement);
+        if (resetPassword && password === "")
+            return setClientFormError("Please enter a password");
 
+        // Create form data
+        const formData = new FormData();
+
+        formData.append("name", name);
+        formData.append("username", username);
+        formData.append("accountType", selected);
+
+        // Only append password if it has been changed
+        formData.append("password", resetPassword ? password : "");
+        formData.append(
+            "confirmPassword",
+            resetPassword ? confirmPassword : ""
+        );
+
+        // Submit form data
         try {
             submit(formData, {
                 method: "POST",
             });
+            setFormSubmitted(true);
+            setFirstUpdate(true);
+            setModified(false);
         } catch (err) {
             const error = err as Error;
             setClientFormError(error.message);
+            setFormSubmitted(false);
         }
     };
 
@@ -146,6 +172,7 @@ export default function AdminManageUserRoute() {
         setPassword("");
         setConfirmPassword("");
     };
+
     // Check if the form has been modified
     useEffect(() => {
         if (
@@ -159,17 +186,36 @@ export default function AdminManageUserRoute() {
         } else {
             setModified(false);
         }
+
+        // This breaks success alert on password reset
+        if (!firstUpdate) return;
+
+        setFormSubmitted(false);
     }, [name, username, selected, password, confirmPassword]);
+
+    const [firstUpdate, setFirstUpdate] = useState(false);
 
     // Reset the form if the user changes
     useEffect(() => {
         //Reset form
-        resetPassordForm();
+
+        if (!firstUpdate) {
+            setFormSubmitted(false);
+        }
+        if (firstUpdate) setFirstUpdate(false);
+
+        if (
+            !action?.fieldErrors?.password &&
+            !action?.fieldErrors?.confirmPassword
+        )
+            resetPassordForm();
 
         // Reset state
-        setName(user.name);
-        setUsername(user.username);
-        setSelected(user.account_type);
+        setName(action?.fields?.name || user.name);
+        setUsername(action?.fields?.username || user.username);
+        setSelected(
+            (action?.fields?.accountType as ACCOUNT_TYPE) || user.account_type
+        );
     }, [user]);
 
     return (
@@ -179,18 +225,6 @@ export default function AdminManageUserRoute() {
                 className="modal"
                 ref={confirmDelete}>
                 <h2 className="theme-text-h1">TESINTG MODEL</h2>
-                <form
-                    method="dialog"
-                    className="modal-box min-w-[500px] min-h-[500px]">
-                    <h3 className="font-bold text-lg">Hello!</h3>
-                    <p className="py-4">
-                        Press ESC key or click the button below to close
-                    </p>
-                    <div className="modal-action">
-                        {/* if there is a button in form, it will close the modal */}
-                        <button className="btn">Close</button>
-                    </div>
-                </form>
             </dialog>
             <div className="flex justify-between">
                 <h1 className="theme-text-h3 mb-2">{user.name}</h1>
@@ -206,12 +240,24 @@ export default function AdminManageUserRoute() {
                     Delete
                 </button>
             </div>
+            <FormAlert
+                variant="error"
+                condition={action?.formError}
+            />
             {clientFormError && (
                 <span className="p-2 my-2 rounded-lg bg-error flex gap-2">
                     <AlertTriangle />
                     {clientFormError}
                 </span>
             )}
+            {formSubmitted &&
+                navigation.state === "idle" &&
+                !action?.fieldErrors && (
+                    <FormAlert
+                        condition={"User updated successfully!"}
+                        variant="success"
+                    />
+                )}
             <Form
                 onSubmit={handleSubmit}
                 className="flex flex-col gap-2"
@@ -224,6 +270,10 @@ export default function AdminManageUserRoute() {
                     className="input input-bordered"
                     placeholder="Name"
                 />
+                <FormAlert
+                    variant="error"
+                    condition={action?.fieldErrors?.name}
+                />
                 <input
                     name="username"
                     value={username}
@@ -231,6 +281,10 @@ export default function AdminManageUserRoute() {
                     type="text"
                     className="input input-bordered"
                     placeholder="Username"
+                />
+                <FormAlert
+                    variant="error"
+                    condition={action?.fieldErrors?.username}
                 />
                 <select
                     name="accountType"
@@ -248,6 +302,10 @@ export default function AdminManageUserRoute() {
                     <option value="USER">USER</option>
                     <option value="GUEST">GUEST</option>
                 </select>
+                <FormAlert
+                    variant="error"
+                    condition={action?.fieldErrors?.accountType}
+                />
                 {resetPassword ? (
                     <>
                         <span className="theme-text-h4">
@@ -278,6 +336,13 @@ export default function AdminManageUserRoute() {
                     type="password"
                     className="input input-bordered"
                     placeholder="Confirm password"
+                />
+                <FormAlert
+                    variant="error"
+                    condition={
+                        action?.fieldErrors?.password ||
+                        action?.fieldErrors?.confirmPassword
+                    }
                 />
                 <button
                     onClick={(e) => resetPassordForm()}

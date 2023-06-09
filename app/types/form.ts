@@ -11,8 +11,8 @@ export type FieldErrors<TFields> = {
 export type CreateUserFields = {
     name: string;
     username: string;
-    password: string;
-    confirmPassword: string;
+    password: string | null;
+    confirmPassword: string | null;
     accountType: string;
 };
 export type CreateUserFieldErrors = FieldErrors<CreateUserFields>;

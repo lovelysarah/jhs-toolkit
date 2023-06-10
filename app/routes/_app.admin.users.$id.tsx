@@ -9,31 +9,25 @@ import {
     useNavigation,
     useRouteError,
     useSubmit,
-    useTransition,
 } from "@remix-run/react";
 import clsx from "clsx";
-import { error } from "console";
 import { AlertTriangle, Trash } from "lucide-react";
-import { type } from "os";
 import { useEffect, useRef, useState } from "react";
 import invariant from "tiny-invariant";
 import { UserInfo, getUserInfoById, modifyUser } from "~/api/user";
 import { FormAlert } from "~/components/FormAlert";
+import { validateUserUpdateForm } from "~/helper/UserFormValidator";
 import {
-    validateUserCreationForm,
-    validateUserUpdateForm,
-} from "~/helper/UserFormValidator";
-import { CreateUserActionData } from "~/types/form";
+    CreateUserActionData,
+    FORM_VALIDATION_RESULT_TYPE,
+} from "~/types/form";
 import { db } from "~/utils/db.server";
-import { badRequest } from "~/utils/request.server";
 
 type LoaderData = {
     user: UserInfo;
 };
 
 export const loader: LoaderFunction = async ({ request, params }) => {
-    const url = new URL(request.url);
-
     invariant(params.id, "Something went wrong!");
 
     let user;
@@ -79,11 +73,15 @@ export const action: ActionFunction = async ({ request, params }) => {
         params.id
     );
 
+    if (validationResult.type === FORM_VALIDATION_RESULT_TYPE.FAILURE) {
+        return validationResult.error;
+    }
+
     await modifyUser(params.id, {
-        username,
-        name,
-        accountType: accountType as ACCOUNT_TYPE,
-        password: password as string,
+        name: validationResult.data.name,
+        username: validationResult.data.username,
+        accountType: validationResult.data.accountType,
+        password: validationResult.data.password,
     });
 
     return json({ success: true }, { status: 201 });
@@ -92,7 +90,7 @@ export const action: ActionFunction = async ({ request, params }) => {
 export default function AdminManageUserRoute() {
     const { user } = useLoaderData<LoaderData>();
     const action = useActionData<CreateUserActionData>();
-    const navigation = useNavigation();
+    const { state } = useNavigation();
 
     if (!user) {
         throw new Error("User not found");
@@ -117,6 +115,7 @@ export default function AdminManageUserRoute() {
     const [resetPassword, setResetPassword] = useState(false);
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
+    const [passwordError, setPasswordError] = useState("");
 
     // Modal reference
     const confirmDelete = useRef<HTMLDialogElement>(null);
@@ -133,7 +132,7 @@ export default function AdminManageUserRoute() {
             return setClientFormError("Please fill in all the fields.");
 
         if (resetPassword && password !== confirmPassword)
-            return setClientFormError("Passwords do not match.");
+            return setClientFormError("Verify password");
 
         if (resetPassword && password === "")
             return setClientFormError("Please enter a password");
@@ -172,6 +171,13 @@ export default function AdminManageUserRoute() {
         setPassword("");
         setConfirmPassword("");
     };
+
+    // Display error if password does not match
+    useEffect(() => {
+        if (confirmPassword.length !== 0 && password !== confirmPassword)
+            return setPasswordError("Passwords do not match");
+        setPasswordError("");
+    }, [password, confirmPassword]);
 
     // Check if the form has been modified
     useEffect(() => {
@@ -218,6 +224,14 @@ export default function AdminManageUserRoute() {
         );
     }, [user]);
 
+    const inputClasses = clsx("input input-bordered", {
+        "input-disabled animate-pulse": state !== "idle",
+    });
+
+    const isLoading = state === "loading";
+    const isSubmitting = state === "submitting";
+    const isIdle = state === "idle";
+
     return (
         <div>
             <dialog
@@ -227,47 +241,55 @@ export default function AdminManageUserRoute() {
                 <h2 className="theme-text-h1">TESINTG MODEL</h2>
             </dialog>
             <div className="flex justify-between">
-                <h1 className="theme-text-h3 mb-2">{user.name}</h1>
+                <h1
+                    className={clsx("theme-text-h3 mb-2", {
+                        "animate-pulse": isLoading,
+                    })}>
+                    {user.name}
+                </h1>
 
                 {/* // BROKEN */}
-                <button
-                    onClick={() =>
-                        confirmDelete.current &&
-                        confirmDelete.current.showModal()
-                    }
-                    className="flex gap-2 btn btn-ghost text-error-content">
-                    <Trash />
-                    Delete
-                </button>
+                {state !== "loading" && (
+                    <button
+                        onClick={() =>
+                            confirmDelete.current &&
+                            confirmDelete.current.showModal()
+                        }
+                        className="flex gap-2 btn btn-ghost text-error-content">
+                        <Trash />
+                        Delete
+                    </button>
+                )}
             </div>
-            <FormAlert
-                variant="error"
-                condition={action?.formError}
-            />
-            {clientFormError && (
-                <span className="p-2 my-2 rounded-lg bg-error flex gap-2">
-                    <AlertTriangle />
-                    {clientFormError}
-                </span>
-            )}
-            {formSubmitted &&
-                navigation.state === "idle" &&
-                !action?.fieldErrors && (
+            <Form
+                onSubmit={handleSubmit}
+                className="flex flex-col gap-2"
+                method="POST">
+                {clientFormError && (
+                    <FormAlert
+                        variant="warning"
+                        condition={clientFormError}
+                    />
+                )}
+
+                {formSubmitted && isIdle && !action?.fieldErrors && (
                     <FormAlert
                         condition={"User updated successfully!"}
                         variant="success"
                     />
                 )}
-            <Form
-                onSubmit={handleSubmit}
-                className="flex flex-col gap-2"
-                method="POST">
+
+                <FormAlert
+                    variant="error"
+                    condition={action?.formError}
+                />
                 <input
                     name="name"
                     value={name}
                     onChange={(e) => setName(e.currentTarget.value)}
                     type="text"
-                    className="input input-bordered"
+                    className={inputClasses}
+                    disabled={isLoading || isSubmitting}
                     placeholder="Name"
                 />
                 <FormAlert
@@ -279,7 +301,8 @@ export default function AdminManageUserRoute() {
                     value={username}
                     onChange={(e) => setUsername(e.currentTarget.value)}
                     type="text"
-                    className="input input-bordered"
+                    className={inputClasses}
+                    disabled={isLoading || isSubmitting}
                     placeholder="Username"
                 />
                 <FormAlert
@@ -292,6 +315,7 @@ export default function AdminManageUserRoute() {
                         setSelected(e.currentTarget.value as ACCOUNT_TYPE)
                     }
                     value={selected || "DEFAULT"}
+                    disabled={isLoading || isSubmitting}
                     className="select select-primary w-full">
                     <option
                         disabled
@@ -306,18 +330,12 @@ export default function AdminManageUserRoute() {
                     variant="error"
                     condition={action?.fieldErrors?.accountType}
                 />
-                {resetPassword ? (
+                {resetPassword && (
                     <>
                         <span className="theme-text-h4">
                             Enter the new password
                         </span>
                     </>
-                ) : (
-                    <button
-                        onClick={(e) => setResetPassword(true)}
-                        className="btn btn-secondary">
-                        Reset Password
-                    </button>
                 )}
                 <input
                     hidden={!resetPassword}
@@ -325,7 +343,8 @@ export default function AdminManageUserRoute() {
                     value={password}
                     onChange={(e) => setPassword(e.currentTarget.value)}
                     type="password"
-                    className="input input-bordered"
+                    className={inputClasses}
+                    disabled={isLoading || isSubmitting}
                     placeholder="Password"
                 />
                 <input
@@ -334,9 +353,24 @@ export default function AdminManageUserRoute() {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.currentTarget.value)}
                     type="password"
-                    className="input input-bordered"
+                    className={inputClasses}
+                    disabled={isLoading || isSubmitting}
                     placeholder="Confirm password"
                 />
+                {passwordError && (
+                    <FormAlert
+                        variant="warning"
+                        condition={passwordError}
+                    />
+                )}
+                {isIdle && !resetPassword && (
+                    <button
+                        onClick={(e) => setResetPassword(true)}
+                        className="btn btn-secondary">
+                        Reset Password
+                    </button>
+                )}
+
                 <FormAlert
                     variant="error"
                     condition={
@@ -344,26 +378,36 @@ export default function AdminManageUserRoute() {
                         action?.fieldErrors?.confirmPassword
                     }
                 />
-                <button
-                    onClick={(e) => resetPassordForm()}
-                    type="button"
-                    className={clsx("btn btn-secondary", {
-                        hidden: !resetPassword,
-                    })}>
-                    Cancel
-                </button>
-                {modified && (
+                {isIdle && (
                     <button
-                        className="btn btn-primary"
-                        type="submit">
-                        Submit changes
+                        onClick={(e) => resetPassordForm()}
+                        type="button"
+                        className={clsx("btn btn-secondary", {
+                            hidden: !resetPassword,
+                        })}>
+                        Cancel
                     </button>
                 )}
-                <Link
-                    to="/admin/users"
-                    className="btn btn-error btn-outline text-error-content">
-                    Close
-                </Link>
+                {isIdle && modified && (
+                    <button
+                        className={clsx("btn", {
+                            "btn-primary": modified,
+                        })}
+                        type="submit">
+                        {state !== "idle"
+                            ? state === "loading"
+                                ? "Loading..."
+                                : "Submiting..."
+                            : "Submit changes"}
+                    </button>
+                )}
+                {isIdle && (
+                    <Link
+                        to="/admin/users"
+                        className="btn btn-error btn-outline text-error-content">
+                        Close
+                    </Link>
+                )}
             </Form>
         </div>
     );

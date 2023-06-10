@@ -19,6 +19,7 @@ export type UserInfo = Awaited<ReturnType<typeof getUserInfoById>>;
 
 export const getAllUsers = async () => {
     return await db.user.findMany({
+        orderBy: { account_type: "asc" },
         select: { id: true, username: true, account_type: true, name: true },
     });
 };

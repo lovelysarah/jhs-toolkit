@@ -1,8 +1,15 @@
 import { LoaderFunction, json } from "@remix-run/node";
-import { Link, Outlet, useLoaderData, useLocation } from "@remix-run/react";
+import {
+    Link,
+    Outlet,
+    useLoaderData,
+    useLocation,
+    useNavigation,
+} from "@remix-run/react";
 import { AllUsers, getAllUsers } from "~/api/user";
 import { Unpacked } from "~/types/utils";
-import { Edit } from "lucide-react";
+import { BadgeCheck, Edit, Loader, User, Users } from "lucide-react";
+import { useState } from "react";
 
 type LoaderData = {
     users: AllUsers;
@@ -19,27 +26,42 @@ export const loader: LoaderFunction = async () => {
 
 type TableRowProps = {
     user: Unpacked<AllUsers>;
+    onSelect: () => void;
+    isSelected: boolean;
 };
 
-const TableRow = ({ user }: TableRowProps) => {
+const TableRow = ({ user, onSelect, isSelected }: TableRowProps) => {
+    const { state } = useNavigation();
+
+    const showLoadingIcon = state !== "idle" && isSelected;
     return (
         <tr>
             <td>
                 <div className="flex items-center space-x-3">
                     <div>
-                        <div className="font-bold">{user.name}</div>
-                        <div className="text-sm opacity-50">
+                        <span className="font-bold flex gap-2">
+                            {user.account_type === "ADMIN" && <BadgeCheck />}
+                            {user.account_type === "USER" && <User />}
+                            {user.account_type === "GUEST" && <Users />}
+                            {user.name}
+                        </span>
+                        <span className="text-sm opacity-50">
                             Last login: {new Date().toDateString()}
-                        </div>
+                        </span>
                     </div>
                 </div>
             </td>
             <td className="hidden sm:table-cell">{user.account_type}</td>
             <th>
                 <Link
+                    onClick={onSelect}
                     to={`/admin/users/${user.id}`}
                     className="btn btn-ghost">
-                    <Edit />
+                    {showLoadingIcon ? (
+                        <Loader className="animate-spin" />
+                    ) : (
+                        <Edit />
+                    )}
                 </Link>
             </th>
         </tr>
@@ -52,6 +74,9 @@ export default function AdminIndexRoute() {
 
     const smallList = ["Name"];
     const largeList = ["Name", "Account Type"];
+
+    const [selected, setSelected] = useState<string | null>(null);
+    console.log({ selected });
 
     return (
         <section className="flex flex-col-reverse md:flex-row gap-4 items-start">
@@ -83,24 +108,14 @@ export default function AdminIndexRoute() {
                     <tbody>
                         {users.map((user) => (
                             <TableRow
+                                onSelect={() => setSelected(user.id)}
                                 key={user.username}
                                 user={user}
+                                isSelected={selected === user.id}
                             />
                         ))}
                         {/* row 2 */}
                     </tbody>
-                    {/* foot */}
-                    <tfoot>
-                        <tr>
-                            {["Name", "Account Type"].map((th) => (
-                                <th
-                                    className="bg-base-100"
-                                    key={th}>
-                                    {th}
-                                </th>
-                            ))}
-                        </tr>
-                    </tfoot>
                 </table>
             </div>
             <div className="top-0 py-4 sticky basis-full md:basis-2/5 bg-base-100 z-20 md:z-0 w-full border-b-2 border-base-300 md:border-b-0">

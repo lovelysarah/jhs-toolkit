@@ -4,6 +4,13 @@ import {
     CreateUserActionData,
     CreateUserFieldErrors,
     CreateUserFields,
+    FORM_ACTION,
+    FORM_VALIDATION_RESULT_TYPE,
+    FormActionData,
+    ModifyUserActionData,
+    TypeValidationResults,
+    UpdateFormValidationFailure,
+    UpdateFormValidationResults,
 } from "~/types/form";
 import { db } from "~/utils/db.server";
 import { badRequest } from "~/utils/request.server";
@@ -45,32 +52,13 @@ type UserFormData = {
     accountType: unknown;
 };
 
-type TypeValidationFailure = {
-    type: "TYPE_VALIDATION_FAILURE";
-    error: TypedResponse<CreateUserActionData>;
-};
-
-type TypeValidationSuccess<T> = {
-    type: "TYPE_VALIDATION_SUCCESS";
-    data: T;
-};
-
-type TypeValidationResults<T> =
-    | TypeValidationSuccess<T>
-    | TypeValidationFailure;
-
-type UpdateFormValidationFailure = {
-    type: "UPDATE_FORM_VALIDATION_FAILURE";
-    error: TypedResponse<CreateUserActionData>;
-};
-
 const validateTypes = <T extends Record<string, unknown>>(
     obj: T
 ): TypeValidationResults<{ [key in keyof T]: string }> => {
     const newObj = {} as { [key in keyof T]: string };
     let failed = false;
 
-    const error = badRequest<CreateUserActionData>({
+    const error = badRequest<CreateUserActionData | ModifyUserActionData>({
         fieldErrors: null,
         fields: null,
         formError: "Fields are required",
@@ -132,47 +120,66 @@ export const validateUserCreationForm = async (data: UserFormData) => {
 export const validateUserUpdateForm = async (
     data: UserFormData,
     userId: string
-) => {
+): Promise<UpdateFormValidationResults<ModifyUserActionData>> => {
     const fieldValidationResults = validateTypes(data);
 
+    // Failure boilerplate
+    const failure: UpdateFormValidationFailure<ModifyUserActionData> = {
+        type: FORM_VALIDATION_RESULT_TYPE.FAILURE,
+        action: FORM_ACTION.USER_UPDATE,
+        error: null,
+    };
+
+    // Exit if basic type validation fails
     if (fieldValidationResults.type === "TYPE_VALIDATION_FAILURE") {
-        return fieldValidationResults.error;
+        failure.error = fieldValidationResults.error;
+        return failure;
     }
 
     const { name, username, password, confirmPassword, accountType } =
         fieldValidationResults.data;
 
+    // Indivial field validation
     const fieldErrors = {
         name: validate["name"](name),
         username: validate["username"](username),
 
         // If password is changed, validate it
         password:
-            password.length < 1
+            password.length > 1
                 ? validate["password"](password, confirmPassword)
                 : undefined,
         accountType: validate["accountType"](accountType),
     };
 
+    // If any of the fields are invalid, return failure
     if (Object.values(fieldErrors).some(Boolean)) {
-        return badRequest<CreateUserActionData>({
+        failure.error = badRequest<ModifyUserActionData>({
             fieldErrors,
             fields: fieldValidationResults.data,
             formError: "Fields are invalid",
         });
+
+        return failure;
     }
 
     const userExists = await db.user.findFirst({
         where: { username: username },
     });
 
+    // If the username is taken, return failure except if it's the user getting updated
     if (userExists && userExists.id !== userId) {
-        return badRequest<CreateUserActionData>({
+        failure.error = badRequest<ModifyUserActionData>({
             fieldErrors: null,
             fields: fieldValidationResults.data,
             formError: `User with username ${username} already exists`,
         });
+        return failure;
     }
 
-    return {};
+    return {
+        action: FORM_ACTION.USER_UPDATE,
+        type: FORM_VALIDATION_RESULT_TYPE.SUCCESS,
+        data: fieldValidationResults.data,
+    };
 };

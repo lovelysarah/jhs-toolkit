@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Check } from "lucide-react";
 
 export const FormAlert = ({
     condition,
@@ -17,7 +17,11 @@ export const FormAlert = ({
                 "text-success-content bg-success": variant === "success",
                 "text-error-content bg-error": variant === "error",
             })}>
-            <AlertTriangle />
+            {variant === "error" || variant === "warning" ? (
+                <AlertTriangle />
+            ) : (
+                <Check />
+            )}
             {condition}
         </span>
     );

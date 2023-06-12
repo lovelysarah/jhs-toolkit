@@ -9,6 +9,7 @@ import {
 import clsx from "clsx";
 import invariant from "tiny-invariant";
 import { saveUserKit } from "~/api/cart";
+import { CheckoutItems } from "~/api/inventory";
 import {
     CollectionOfItems,
     getAllItems,
@@ -56,7 +57,7 @@ export const action: ActionFunction = async ({ request }) => {
     const { getCart, commit, updateCart } = await getCartSession(request);
     const cart = getCart();
 
-    await saveUserKit(userId, cart);
+    await CheckoutItems(userId, cart);
 
     updateCart([]);
 

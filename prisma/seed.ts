@@ -4,23 +4,24 @@ import { nanoid } from "nanoid";
 
 async function setup() {
     await db.item.deleteMany({});
-    await db.user.deleteMany({});
+    // await db.user.deleteMany({});
 }
 
 async function seed() {
-    getUsers.forEach(async (user) => {
-        await db.user.create({
-            data: {
-                ...user,
-                shed_cart: [],
-                shed_checked_out: [],
-            },
-        });
-    });
+    // getUsers.forEach(async (user) => {
+    //     await db.user.create({
+    //         data: {
+    //             ...user,
+    //             shed_cart: [],
+    //             shed_checked_out: [],
+    //         },
+    //     });
+    // });
     createItems.forEach(async (item) => {
         await db.item.create({
             data: {
                 ...item,
+                location: "FLANDERS",
                 quantity: Math.floor(Math.random() * 10) + 2,
                 note: "This is a test",
                 last_checked_out_by: "YESS Group",

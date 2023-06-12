@@ -1,10 +1,4 @@
-import {
-    Item,
-    Prisma,
-    PrismaClient,
-    PrismaPromise,
-    User,
-} from "@prisma/client";
+import { PrismaPromise } from "@prisma/client";
 import { countItemsInCart } from "~/utils/cart";
 import { db } from "~/utils/db.server";
 

@@ -19,26 +19,49 @@ enum Category {
   SUMMER
 }
 
+enum ShedLocation {
+  JOYCE
+  FLANDERS
+}
+
+enum InventoryActionType {
+  CHECK_IN
+  CHECK_OUT
+}
+
+model ShedTransaction {
+  id            String              @id @default(auto()) @map("_id") @db.ObjectId
+  item_ids      String[]
+  shed_location ShedLocation
+  action_type   InventoryActionType
+  created_at    DateTime            @default(now())
+  user          User                @relation(fields: [user_id], references: [id])
+  user_id       String              @db.ObjectId
+}
+
 model Item {
-  id                  String   @id @default(auto()) @map("_id") @db.ObjectId
-  shortId             String   @unique
-  name                String   @unique
-  quantity            Int      @default(1)
+  id                  String       @id @default(auto()) @map("_id") @db.ObjectId
+  shortId             String       @unique
+  name                String       @unique
+  location            ShedLocation
+  quantity            Int          @default(1)
   category            Category
   note                String
   last_checked_out_by String
-  last_checked_out_at DateTime @default(now())
+  last_checked_out_at DateTime     @default(now())
 }
 
 model User {
-  id               String       @id @default(auto()) @db.ObjectId @map("_id")
-  short_id         String       @unique
-  username         String       @unique
-  password         String
-  name             String
-  account_type     ACCOUNT_TYPE
-  shed_cart        String[]
-  shed_checked_out String[]
+  id                String            @id @default(auto()) @map("_id") @db.ObjectId
+  // short_id          String            @unique
+  username          String            @unique
+  password          String
+  name              String
+  account_type      ACCOUNT_TYPE
+  shed_cart         String[]
+  shed_checked_out  String[]
+  shed_transactions ShedTransaction[]
+  deleted_at        DateTime?
 }
 
 enum ACCOUNT_TYPE {

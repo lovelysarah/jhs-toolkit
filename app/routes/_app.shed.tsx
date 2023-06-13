@@ -37,9 +37,8 @@ type ShedMenuLink = {
 const shedMenuLinks: ShedMenuLink[] = [
     {
         text: "Activity",
-        href: "/shed",
+        href: "/shed/activity",
         display: true,
-        end: true,
         icon: <Activity />,
     },
     {
@@ -118,6 +117,14 @@ export default function ManageShedRoute() {
                 </nav>
             </div>
             <Outlet />
+
+            <div className="theme-padding-y">
+                <h2 className="theme-text-h3">Recent activity</h2>
+                <p>
+                    Lorem ipsum, dolor sit amet consectetur adipisicing elit.
+                    Quos, neque?
+                </p>
+            </div>
         </section>
     );
 }

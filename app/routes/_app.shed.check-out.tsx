@@ -111,7 +111,7 @@ export default function ShedCheckOutRoute() {
                 )}
             </div>
 
-            <aside className="w-full md:basis-2/6 sticky top-0 md:top-6 border p-8 rounded-lg border-base-300 bg-base-100">
+            <aside className="z-20 w-full md:basis-2/6 sticky top-0 md:top-6 border p-8 rounded-lg border-base-300 bg-base-100">
                 <h2 className="theme-text-h3">Information</h2>
                 <Form
                     method="POST"

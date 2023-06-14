@@ -1,27 +1,28 @@
 import { LoaderArgs, json } from "@remix-run/node";
-import { Form, Link, Outlet, useLoaderData } from "@remix-run/react";
-import invariant from "tiny-invariant";
 import {
-    LatestShedTransactions,
-    getAllShedTransactions,
-} from "~/api/shedTransaction";
+    Form,
+    Link,
+    Outlet,
+    useLoaderData,
+    useSearchParams,
+} from "@remix-run/react";
+import invariant from "tiny-invariant";
+import { LatestShedTransactions } from "~/api/shedTransaction";
 import { Unpacked } from "~/types/utils";
 import { db } from "~/utils/db.server";
 import { Prisma } from "@prisma/client";
 import { Search, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Pagination from "~/components/Pagination";
+import { TransactionTableRow } from "~/components/TransactionInfoText";
 
-const PER_PAGE = 3;
+const PER_PAGE = 10;
 
 export const loader = async ({ request }: LoaderArgs) => {
     const url = new URL(request.url);
     const query = url.searchParams;
 
     const currentPage = Math.max(Number(query.get("page")) || 1);
-
-    const users = await db.user.findMany({
-        select: { name: true, id: true },
-    });
 
     const countOptions: Prisma.ShedTransactionCountArgs = {};
     const options: Prisma.ShedTransactionFindManyArgs = {
@@ -42,22 +43,34 @@ export const loader = async ({ request }: LoaderArgs) => {
         countOptions.where = options.where;
     }
 
-    const transactionCount = await db.shedTransaction.count(countOptions);
-    const transactions = await db.shedTransaction.findMany({
-        ...options,
-        select: {
-            shed_location: true,
-            item_ids: true,
-            user: { select: { name: true } },
-            action_type: true,
-            created_at: true,
-        },
-    });
+    const [users, transactions, transactionCount] = await Promise.all([
+        db.user.findMany({
+            where: {
+                shed_transactions: {
+                    some: {},
+                },
+            },
+            select: { name: true, id: true },
+        }),
+        db.shedTransaction.findMany({
+            ...options,
+            select: {
+                id: true,
+                shed_location: true,
+                item_ids: true,
+                user: { select: { name: true } },
+                action_type: true,
+                created_at: true,
+            },
+        }),
+        db.shedTransaction.count(countOptions),
+    ]);
 
     const data = {
         usernames: users,
         transactions,
         transactionCount,
+        offset: (currentPage - 1) * PER_PAGE,
     };
 
     return json(data);
@@ -91,31 +104,45 @@ const TableRow = ({ item }: { item: Unpacked<LatestShedTransactions> }) => {
 };
 
 export default function ShedActivityRoute() {
-    const { transactions, transactionCount, usernames } =
+    const { transactions, transactionCount, usernames, offset } =
         useLoaderData<typeof loader>();
 
     console.log(transactions[0]);
+    const [searchParams] = useSearchParams();
+
     invariant(transactions, "Couldn't load latest transactions");
 
-    const [nameFilter, setNameFilter] = useState(false);
+    // const currentPage = searchParams.get("page")
+    //  Number(searchParams.get("page"))
+    // : 1;
+    const finalPage = Math.ceil(transactionCount / PER_PAGE);
+    // const prevPage = Math.max(currentPage - 1, 0);
+    // const nextPage = Math.min(currentPage + 1, finalPage);
 
+    const [nameFilter, setNameFilter] = useState(false);
     const [nameFilterSelected, setNameFilterSelected] = useState("DEFAULT");
+
+    useEffect(() => {
+        setNameFilterSelected(searchParams.get("filter-by-user") || "DEFAULT");
+        setNameFilter(Boolean(searchParams.get("filter-by-user")));
+    }, []);
 
     const largeList = ["Summary"];
     const smallList = ["Name", "Details"];
 
     return (
         <section>
-            <div className="flex justify-between items-center">
-                <div>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                <div className="basis-1/3">
                     <h2 className="theme-text-h3">All</h2>
                     <span className="text-sm">
-                        Displaying {transactions.length} of {transactionCount}
+                        Displaying {offset + 1} to{" "}
+                        {offset + transactions.length} of {transactionCount}
                     </span>
                 </div>
-                <Form className="flex gap-2 items-center">
+                <Form className="basis-2/3 flex gap-2 items-center sm:justify-end my-2">
                     <select
-                        className="select w-full max-w-xs"
+                        className="select max-w-xs"
                         name="filter-by-user"
                         onChange={(e) => {
                             setNameFilter(e.target.value ? true : false);
@@ -124,8 +151,7 @@ export default function ShedActivityRoute() {
                         value={nameFilterSelected}>
                         <option
                             disabled
-                            value={"DEFAULT"}
-                            selected>
+                            value={"DEFAULT"}>
                             Filter by user
                         </option>
                         {usernames.map((user) => (
@@ -147,14 +173,15 @@ export default function ShedActivityRoute() {
                             <X />
                         </Link>
                     )}
+
                     <button className="btn btn-info flex gap-2 items-center">
                         <Search />
-                        Search
+                        <span className="hidden md:inline">Search</span>
                     </button>
                 </Form>
             </div>
             <Outlet />
-            <table className="table w-full">
+            <table className="table w-full z-10">
                 {/* head */}
                 <thead className="hidden sm:table-header-group">
                     <tr>
@@ -180,7 +207,8 @@ export default function ShedActivityRoute() {
                 </thead>
                 <tbody>
                     {transactions.map((item) => (
-                        <TableRow
+                        <TransactionTableRow
+                            key={item.id}
                             item={{
                                 ...item,
                                 created_at: new Date(item.created_at),
@@ -190,12 +218,12 @@ export default function ShedActivityRoute() {
                     {/* row 2 */}
                 </tbody>
             </table>
-            <div className="join">
-                <button className="join-item btn">1</button>
-                <button className="join-item btn btn-active">2</button>
-                <button className="join-item btn">3</button>
-                <button className="join-item btn">{transactionCount}</button>
-            </div>
+            {finalPage > 1 && (
+                <Pagination
+                    totalPages={finalPage}
+                    pageParam="page"
+                />
+            )}
         </section>
     );
 }

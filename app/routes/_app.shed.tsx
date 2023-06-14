@@ -74,7 +74,7 @@ export default function ManageShedRoute() {
 
     return (
         <section className="">
-            <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-4 gap-4 sticky top-14 md:static bg-base-100/95 p-4 border border-base-300 rounded-2xl mx-[-1rem] md:border-0">
+            <div className="z-20 flex flex-col md:flex-row md:justify-between md:items-center mb-4 gap-4 sticky top-14 md:static bg-base-100/95 p-4 border border-base-300 rounded-2xl mx-[-1rem] md:border-0">
                 <h1 className="theme-text-h2 theme-text-gradient hidden md:block">
                     {formattedTitle}
                 </h1>

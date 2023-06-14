@@ -1,11 +1,5 @@
 import { LoaderFunction, json } from "@remix-run/node";
-import {
-    Link,
-    Outlet,
-    useLoaderData,
-    useLocation,
-    useNavigation,
-} from "@remix-run/react";
+import { Link, Outlet, useLoaderData, useNavigation } from "@remix-run/react";
 import { AllUsers, getAllUsers } from "~/api/user";
 import { Unpacked } from "~/types/utils";
 import { BadgeCheck, Edit, Loader, User, Users } from "lucide-react";
@@ -55,6 +49,7 @@ const TableRow = ({ user, onSelect, isSelected }: TableRowProps) => {
             <th>
                 <Link
                     onClick={onSelect}
+                    preventScrollReset={true}
                     to={`/admin/users/${user.id}`}
                     className="btn btn-ghost">
                     {showLoadingIcon ? (
@@ -70,7 +65,6 @@ const TableRow = ({ user, onSelect, isSelected }: TableRowProps) => {
 
 export default function AdminIndexRoute() {
     const { users } = useLoaderData<LoaderData>();
-    const location = useLocation();
 
     const smallList = ["Name"];
     const largeList = ["Name", "Account Type"];

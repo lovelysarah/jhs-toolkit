@@ -33,7 +33,7 @@ export default function App() {
                 <CartProvider>
                     <Outlet />
                 </CartProvider>
-                {/* <ScrollRestoration /> */}
+                <ScrollRestoration />
                 <Scripts />
                 <LiveReload />
             </body>

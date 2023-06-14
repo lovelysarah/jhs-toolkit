@@ -90,6 +90,7 @@ const ItemCard = ({
                     key={item.name}
                     to={expanded ? "/shed/summary" : item.shortId}
                     onClick={handleExpand}
+                    preventScrollReset={true}
                     className={clsx(
                         `text-left no-animation btn shadow-lg
                         rounded-md flex justify-between items-center `,

@@ -36,7 +36,7 @@ export const loader: LoaderFunction = async ({ request }) => {
     const cart = cartSession.getCart();
     const items = await getCollectionOfItems(cart);
 
-    const [adjustedStock, updatedCart] = getAdjustedStock(items, cart);
+    const [_adjustedStock, updatedCart] = getAdjustedStock(items, cart);
 
     const itemCounts = countItemsInCart(updatedCart);
 

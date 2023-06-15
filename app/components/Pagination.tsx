@@ -7,13 +7,20 @@ const Pagination = ({
     ...attrs
 }) => {
     const [queryParams] = useSearchParams();
-    const currentPage = Number(queryParams.get(pageParam) || 1);
+    const currentPage = Math.min(
+        Number(queryParams.get(pageParam) || 1),
+        totalPages
+    );
     totalPages = Number(totalPages);
 
+    const prevPage = Math.max(currentPage - 1, 0);
+    const nextPage = Math.min(currentPage + 1, totalPages);
+
+    console.log({ currentPage, nextPage, prevPage, totalPages });
     const previousQuery = new URLSearchParams(queryParams);
-    previousQuery.set(pageParam, (currentPage - 1).toString());
+    previousQuery.set(pageParam, prevPage.toString());
     const nextQuery = new URLSearchParams(queryParams);
-    nextQuery.set(pageParam, (currentPage + 1).toString());
+    nextQuery.set(pageParam, nextPage.toString());
 
     return (
         <div className="flex w-full justify-center py-4">

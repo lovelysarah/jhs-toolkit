@@ -5,4 +5,5 @@ export const VALID_URLS = [
     "/shed/check-in",
     "/shed/check-out",
     "/admin",
+    "/shed/activity",
 ];

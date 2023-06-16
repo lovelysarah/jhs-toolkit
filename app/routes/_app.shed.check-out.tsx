@@ -1,24 +1,18 @@
-import { ActionFunction, LoaderFunction, json } from "@remix-run/node";
-import {
-    Form,
-    Link,
-    useActionData,
-    useLoaderData,
-    useNavigation,
-} from "@remix-run/react";
+import { json } from "@remix-run/node";
+import { Form, Link, useLoaderData, useNavigation } from "@remix-run/react";
 import clsx from "clsx";
 import invariant from "tiny-invariant";
-import { saveUserKit } from "~/api/cart";
 import { CheckoutItems } from "~/api/inventory";
-import {
-    CollectionOfItems,
-    getAllItems,
-    getCollectionOfItems,
-} from "~/api/item";
-import { UserInfo, getUserInfoById } from "~/api/user";
+import { getCollectionOfItems } from "~/api/item";
+import { getUserInfoById } from "~/api/user";
 import { countItemsInCart, getAdjustedStock } from "~/utils/cart";
 import { getCartSession } from "~/utils/cart.server";
 import { getUserId } from "~/utils/session.server";
+
+import type { ActionFunction, LoaderFunction } from "@remix-run/node";
+import type { CollectionOfItems } from "~/api/item";
+import type { UserInfo } from "~/api/user";
+import { useState } from "react";
 
 type LoaderData = {
     user: UserInfo;
@@ -36,7 +30,7 @@ export const loader: LoaderFunction = async ({ request }) => {
     const cart = cartSession.getCart();
     const items = await getCollectionOfItems(cart);
 
-    const [_adjustedStock, updatedCart] = getAdjustedStock(items, cart);
+    const { updatedCart } = getAdjustedStock(items, cart);
 
     const itemCounts = countItemsInCart(updatedCart);
 
@@ -69,9 +63,10 @@ export const action: ActionFunction = async ({ request }) => {
 
 export default function ShedCheckOutRoute() {
     const { items, counts, user, cartCount } = useLoaderData<LoaderData>();
-    const navigation = useNavigation();
 
-    const actionData = useActionData();
+    const [addingANote, setAddingANote] = useState(false);
+
+    const navigation = useNavigation();
 
     invariant(user, "Check out information not found");
 
@@ -96,7 +91,9 @@ export default function ShedCheckOutRoute() {
                         {items.map((item) => {
                             const count = counts[item.name];
                             return (
-                                <li className="bg-info text-info-content shadow-md flex flex-col py-2 px-4 rounded-lg">
+                                <li
+                                    key={item.id}
+                                    className="bg-info text-info-content shadow-md flex flex-col py-2 px-4 rounded-lg">
                                     <div className="flex justify-between items-center">
                                         <span className="theme-text-h4 py-2">
                                             {item.name}
@@ -116,10 +113,42 @@ export default function ShedCheckOutRoute() {
                 <Form
                     method="POST"
                     className="flex flex-col gap-2">
-                    <span className="theme-text-p">
-                        Check out as{" "}
-                        <span className="font-bold">{user.name}</span>
-                    </span>
+                    {user.account_type === "GUEST" ? (
+                        <>
+                            <span>
+                                You are signed in as{" "}
+                                <span className="font-bold">{user.name}</span>,
+                                please provide a name
+                            </span>
+                            <input
+                                className="input input-bordered"
+                                name="display-name"
+                                placeholder="Enter your name or group name"></input>
+                        </>
+                    ) : (
+                        <span className="theme-text-p">
+                            Check out as{" "}
+                            <span className="font-bold">{user.name}</span>
+                        </span>
+                    )}
+                    {addingANote ? (
+                        <>
+                            <textarea
+                                className="textarea"
+                                placeholder="Bio"></textarea>
+                            <button
+                                className="btn btn-error"
+                                onClick={(e) => setAddingANote(false)}>
+                                Cancel
+                            </button>
+                        </>
+                    ) : (
+                        <button
+                            className="btn btn-secondary"
+                            onClick={(e) => setAddingANote(true)}>
+                            Add a note
+                        </button>
+                    )}
                     <button
                         className={clsx("btn btn-primary", {
                             "btn-warning": submitting,

@@ -17,7 +17,7 @@ export type AdjustedItem = Item & {
 export const getAdjustedStock = (
     items: Item[],
     cart: string[]
-): [AdjustedItem[], string[]] => {
+): { adjustedStock: AdjustedItem[]; updatedCart: string[] } => {
     const newCart = [...cart];
 
     const removeItemFromCart = (item: Item, amount: number) => {
@@ -72,5 +72,5 @@ export const getAdjustedStock = (
             ...extraInfo,
         };
     });
-    return [newItemList, newCart];
+    return { adjustedStock: newItemList, updatedCart: newCart };
 };

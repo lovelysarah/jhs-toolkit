@@ -1,56 +1,19 @@
 import { Link } from "@remix-run/react";
 import clsx from "clsx";
+import type { MultipleTransactions } from "~/api/shedTransaction";
+import type { Unpacked } from "~/types/utils";
 
 export type TransactionInfoTextProps = {
-    item: any;
+    item: Unpacked<MultipleTransactions>;
     isSelected: boolean;
-    details: any;
     detailsLink: string;
-};
-const ShowDetails = ({ data }: { data: any }) => {
-    return (
-        <div
-            className={clsx("bg-base-300 rounded-lg", {
-                "font-normal text-base-content": true,
-            })}>
-            <h2 className="theme-text-h3">Transaction Details</h2>
-            <div className="flex">
-                <div className="flex-1">
-                    <h4 className="theme-text-h4">Items</h4>
-                    {data.item_ids.map((item: any) => {
-                        return <span key={item}>{item}</span>;
-                    })}
-                </div>
-                <div className="flex-1">
-                    <h4 className="theme-text-h4">User</h4>
-                    <span>{data.user.name}</span>
-                    <h4 className="theme-text-h4">Action</h4>
-                    <span>
-                        {data.action_type === "CHECK_OUT"
-                            ? "Check out"
-                            : "Check in"}
-                    </span>
-
-                    <h4 className="theme-text-h4">Note</h4>
-                    <p>
-                        Lorem ipsum dolor, sit amet consectetur adipisicing
-                        elit. Ratione quidem commodi blanditiis architecto quis
-                        et nisi facilis mollitia consequuntur delectus?
-                    </p>
-                </div>
-            </div>
-        </div>
-    );
 };
 
 export const TransactionTableRow = ({
     item,
-    details,
     detailsLink,
     isSelected,
 }: TransactionInfoTextProps) => {
-    console.log(detailsLink);
-    const showDetails = details && isSelected;
     return (
         <>
             <tr className="hidden md:table-row">
@@ -76,7 +39,7 @@ export const TransactionTableRow = ({
                         {" on"} {item.created_at.toLocaleDateString()}
                     </div>
                 </td>
-                {!showDetails && (
+                {!isSelected && (
                     <td>
                         <Link
                             to={`?${detailsLink}`}

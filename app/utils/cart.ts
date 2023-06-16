@@ -1,5 +1,4 @@
-import { Item } from "@prisma/client";
-import { SerializeFrom, json } from "@remix-run/node";
+import type { Item } from "@prisma/client";
 
 export const countItemsInCart = (cart: string[]): { [key: string]: number } =>
     cart.reduce((acc: any, item) => {

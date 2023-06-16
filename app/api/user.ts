@@ -1,4 +1,4 @@
-import { ACCOUNT_TYPE } from "@prisma/client";
+import type { ACCOUNT_TYPE } from "@prisma/client";
 import { db } from "~/utils/db.server";
 import { generateHash } from "~/utils/hash";
 
@@ -69,3 +69,19 @@ export const modifyUser = async (id: string, data: CreateUserInput) => {
 };
 
 export type ModifyUserResult = Awaited<ReturnType<typeof modifyUser>>;
+
+// Returns a list of users that have at least 1 shed transactions
+export const getUsersThatHaveShedTransactions = async () => {
+    return await db.user.findMany({
+        where: {
+            shed_transactions: {
+                some: {},
+            },
+        },
+        select: { name: true, id: true },
+    });
+};
+
+export type UsersWithAShedTransaction = Awaited<
+    ReturnType<typeof getUsersThatHaveShedTransactions>
+>;

@@ -1,57 +1,52 @@
-import { PrismaClient, ShedTransaction } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
+import { countItemsInCart } from "~/utils/cart";
 import { db } from "~/utils/db.server";
 
-const PER_PAGE = 3;
-export type GetAllShedTransactionsArgs = {
-    skip?: number;
-    take?: number;
-};
-
-export const getAllShedTransactions = async ({
-    skip = PER_PAGE,
-    take = PER_PAGE,
-}: GetAllShedTransactionsArgs) => {
-    const result = await db.shedTransaction.findMany({
-        take: 3,
-        skip: ,
-        orderBy: { created_at: "desc" },
+// Returns details about a specific transaction
+export const getTransactionDetails = async (transactionId: string) => {
+    const transactionDetails = await db.shedTransaction.findFirstOrThrow({
+        where: { id: transactionId },
         select: {
-            shed_location: true,
+            id: true,
             item_ids: true,
             user: { select: { name: true } },
+            shed_location: true,
             action_type: true,
             created_at: true,
         },
     });
 
-    return result;
-};
+    const transactionCartCount = countItemsInCart(
+        transactionDetails.item_ids.sort()
+    );
 
-export type AllShedTransactions = Awaited<
-    ReturnType<typeof getAllShedTransactions>
+    return {
+        ...transactionDetails,
+        count: transactionCartCount,
+    };
+};
+export type TransactionDetails = Awaited<
+    ReturnType<typeof getTransactionDetails>
 >;
 
-export const getLatestShedTransactions = async () => {
-    const oneWeekAgo = new Date();
-    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-
-    const result = await db.shedTransaction.findMany({
-        orderBy: { created_at: "desc" },
-        where: {
-            created_at: { gte: oneWeekAgo },
-        },
+// Returns a list of transactions
+export const getTransactionsFromRange = async <
+    T extends Prisma.ShedTransactionFindManyArgs
+>(
+    options: T
+) => {
+    return await db.shedTransaction.findMany({
         select: {
-            user: { select: { name: true } },
+            id: true,
+            shed_location: true,
+            item_ids: true,
             action_type: true,
             created_at: true,
-            item_ids: true,
-            shed_location: true,
+            user: { select: { name: true } },
         },
+        ...options,
     });
-
-    return result;
 };
-
-export type LatestShedTransactions = Awaited<
-    ReturnType<typeof getLatestShedTransactions>
+export type MultipleTransactions = Awaited<
+    ReturnType<typeof getTransactionsFromRange>
 >;

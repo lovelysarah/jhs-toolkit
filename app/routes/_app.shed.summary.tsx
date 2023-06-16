@@ -1,20 +1,17 @@
-import { Category } from "@prisma/client";
-import { LoaderFunction, SerializeFrom, json } from "@remix-run/node";
+import { json } from "@remix-run/node";
 import { Link, Outlet, useFetcher, useLoaderData } from "@remix-run/react";
 import { useRevalidator } from "@remix-run/react";
 
 import clsx from "clsx";
-import {
-    Dispatch,
-    PropsWithChildren,
-    SetStateAction,
-    useEffect,
-    useRef,
-    useState,
-} from "react";
-import { getAllItems } from "~/api/item";
-import { getAdjustedStock, countItemsInCart, AdjustedItem } from "~/utils/cart";
+import { useEffect, useRef, useState } from "react";
+import { getAdjustedStock, countItemsInCart } from "~/utils/cart";
 import { getCartSession } from "~/utils/cart.server";
+import { getAllItems } from "~/api/item";
+
+import type { AdjustedItem } from "~/utils/cart";
+import type { Dispatch, PropsWithChildren, SetStateAction } from "react";
+import type { Category } from "@prisma/client";
+import type { LoaderFunction, SerializeFrom } from "@remix-run/node";
 
 type LoaderData = {
     items: AdjustedItem[];
@@ -144,8 +141,7 @@ const AwaitingCheckout = ({
             <div className="flex justify-between items-center mb-2">
                 <h4 className="theme-text-h4">Awaiting check out</h4>
                 <span>
-                    Stocks last updated {lastUpdated.getHours()}:
-                    {lastUpdated.getMinutes()}:{lastUpdated.getSeconds()}
+                    Stocks last updated {lastUpdated.toLocaleTimeString()}
                 </span>
             </div>
             <div className="flex justify-between items-start px-2 py-4 rounded-lg">
@@ -198,6 +194,7 @@ export default function ShedSummaryRoute() {
     const persistCartRef = useRef(persistCart);
     const mountRun = useRef(false);
 
+    // TODO: Fix dependencies
     useEffect(() => {
         const pollingRate = 5000;
         const polling = setInterval(() => {
@@ -213,10 +210,7 @@ export default function ShedSummaryRoute() {
         if (initialCart.length === cart.length) return;
 
         setCart(initialCart);
-        // setSyncing(true);
     }, [initialCart]);
-
-    // Displays badges for each unique item in the cart with their count.
 
     useEffect(() => {
         persistCartRef.current = persistCart;
@@ -228,13 +222,10 @@ export default function ShedSummaryRoute() {
             return;
         }
 
-        // if (syncing) return setSyncing(false);
-        console.log("POST");
-
         const string = JSON.stringify(cart);
         persistCartRef.current.submit(
             { cart: string },
-            { action: "/action/update-cart", method: "post" }
+            { action: "/action/update-cart", method: "POST" }
         );
     }, [cart]);
 

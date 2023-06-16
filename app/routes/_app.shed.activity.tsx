@@ -1,54 +1,56 @@
-import { LoaderArgs, json } from "@remix-run/node";
-import {
-    Form,
-    Link,
-    Outlet,
-    useLoaderData,
-    useSearchParams,
-} from "@remix-run/react";
-import invariant from "tiny-invariant";
-import { LatestShedTransactions } from "~/api/shedTransaction";
-import { Unpacked } from "~/types/utils";
-import { db } from "~/utils/db.server";
-import { Prisma, ShedTransaction } from "@prisma/client";
+import clsx from "clsx";
+import { json } from "@remix-run/node";
 import { Search, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Form, Link, useLoaderData, useSearchParams } from "@remix-run/react";
+
 import Pagination from "~/components/Pagination";
 import { TransactionTableRow } from "~/components/TransactionInfoText";
-import clsx from "clsx";
-import { countItemsInCart } from "~/utils/cart";
 
+import { db } from "~/utils/db.server";
+
+import type { UsersWithAShedTransaction } from "~/api/user";
+import type { LoaderArgs } from "@remix-run/node";
+import type { Prisma } from "@prisma/client";
+import {
+    getTransactionDetails,
+    getTransactionsFromRange,
+} from "~/api/shedTransaction";
+import type {
+    MultipleTransactions,
+    TransactionDetails,
+} from "~/api/shedTransaction";
+
+import { getUsersThatHaveShedTransactions } from "~/api/user";
+
+// How many transactions to show per page
 const PER_PAGE = 10;
 
-export const loader = async ({ request, params }: LoaderArgs) => {
+type LoaderData = {
+    users: UsersWithAShedTransaction;
+    transactionDetails: TransactionDetails;
+    transactions: MultipleTransactions;
+    transactionCount: number;
+    offset: number;
+};
+export const loader = async ({ request }: LoaderArgs) => {
+    const data = {} as LoaderData;
+
+    // Get the query parameters
     const url = new URL(request.url);
     const query = url.searchParams;
 
     // Get details about the transaction
     const transactionId = query.get("transaction");
-    let transactionDetails = null;
-    let transactionCartCount = null;
 
     if (transactionId) {
-        transactionDetails = await db.shedTransaction.findFirstOrThrow({
-            where: { id: transactionId },
-            select: {
-                id: true,
-                item_ids: true,
-                user: { select: { name: true } },
-                shed_location: true,
-                action_type: true,
-                created_at: true,
-            },
-        });
-
-        transactionCartCount = countItemsInCart(
-            transactionDetails.item_ids.sort()
-        );
+        data.transactionDetails = await getTransactionDetails(transactionId);
     }
 
+    // Get the current page
     const currentPage = Math.max(Number(query.get("page")) || 1);
 
+    // Set query options for pagination
     const countOptions: Prisma.ShedTransactionCountArgs = {};
     const options: Prisma.ShedTransactionFindManyArgs = {
         take: PER_PAGE,
@@ -58,8 +60,8 @@ export const loader = async ({ request, params }: LoaderArgs) => {
         where: undefined,
     };
 
+    // Filter by user
     if (query.get("filter-by-user")) {
-        console.log(query.get("filter-by-user"));
         options.where = {
             user: {
                 id: query.get("filter-by-user") || undefined,
@@ -68,81 +70,31 @@ export const loader = async ({ request, params }: LoaderArgs) => {
         countOptions.where = options.where;
     }
 
+    // Read from database
     const [users, transactions, transactionCount] = await Promise.all([
-        db.user.findMany({
-            where: {
-                shed_transactions: {
-                    some: {},
-                },
-            },
-            select: { name: true, id: true },
-        }),
-        db.shedTransaction.findMany({
-            ...options,
-            select: {
-                id: true,
-                shed_location: true,
-                item_ids: true,
-                user: { select: { name: true } },
-                action_type: true,
-                created_at: true,
-            },
-        }),
+        getUsersThatHaveShedTransactions(),
+        getTransactionsFromRange(options),
         db.shedTransaction.count(countOptions),
     ]);
 
-    const data = {
-        transactionDetails: {
-            ...transactionDetails,
-            count: transactionCartCount,
-        },
-        usernames: users,
-        transactions,
-        transactionCount,
-        offset: (currentPage - 1) * PER_PAGE,
-    };
+    // Set the data
+    data.users = users;
+    data.transactions = transactions;
+    data.transactionCount = transactionCount;
+    data.offset = (currentPage - 1) * PER_PAGE;
 
     return json(data);
 };
 
-const TableRow = ({ item }: { item: Unpacked<LatestShedTransactions> }) => {
-    return (
-        <tr>
-            <td>
-                <span className="font-bold">{item.user.name} </span>
-                {item.action_type === "CHECK_OUT"
-                    ? "checked out"
-                    : "brought back"}{" "}
-                <span className="font-bold link link-primary">
-                    {item.item_ids.length} items
-                </span>
-                {" from"}{" "}
-                {item.shed_location === "FLANDERS"
-                    ? "15 Flanders Court"
-                    : "170 Joyce Ave"}
-                {" at"} {item.created_at.toLocaleTimeString()}
-                {" on"} {item.created_at.toLocaleDateString()}
-            </td>
-            <td>
-                <button className="btn btn-ghost">
-                    {item.user.name.split(" ")[0]}'s bag
-                </button>
-            </td>
-        </tr>
-    );
-};
-
-const ShowDetails = ({
-    data,
-}: {
-    data: ShedTransaction & {
-        count: {
-            [key: string]: number;
-        } | null;
-        user: { name: string };
-    };
-}) => {
+const ShowDetails = ({ data }: { data: TransactionDetails }) => {
     console.log({ data });
+    const uniqueItems = [...new Set(data.item_ids)];
+    const splitInTwo = uniqueItems.length >= 10;
+
+    // Conditional
+    const half = Math.ceil(uniqueItems.length / 2);
+    const itemsFirstHalf = uniqueItems.slice(0, half);
+    const itemsSecondHalf = uniqueItems.slice(half);
     return (
         <div className={clsx({})}>
             <div className="flex md:flex-row md:justify-between md:items-center">
@@ -158,16 +110,49 @@ const ShowDetails = ({
                     <h4 className="theme-text-h4">
                         {data.item_ids.length} Items
                     </h4>
-                    <div className="flex flex-col">
-                        {/* // Add custom key */}
-                        {[...new Set(data.item_ids)].map((item, index) => {
-                            if (data.count)
-                                return (
-                                    <span key={`${item}-${index}`}>
-                                        {data.count[item]} {item}
-                                    </span>
-                                );
-                        })}
+                    <div
+                        className={clsx({
+                            flex: splitInTwo,
+                            "flex flex-col": !splitInTwo,
+                        })}>
+                        {!splitInTwo ? (
+                            uniqueItems.map((item, index) => {
+                                if (data.count)
+                                    return (
+                                        <span key={`${item}-${index}`}>
+                                            {data.count[item]} {item}
+                                        </span>
+                                    );
+                                return null;
+                            })
+                        ) : (
+                            <>
+                                <div className="flex-1 flex flex-col">
+                                    {/* // Add custom key */}
+                                    {itemsFirstHalf.map((item, index) => {
+                                        if (data.count)
+                                            return (
+                                                <span key={`${item}-${index}`}>
+                                                    {data.count[item]} {item}
+                                                </span>
+                                            );
+                                        return null;
+                                    })}
+                                </div>
+                                <div className="flex-1 flex flex-col">
+                                    {/* // Add custom key */}
+                                    {itemsSecondHalf.map((item, index) => {
+                                        if (data.count)
+                                            return (
+                                                <span key={`${item}-${index}`}>
+                                                    {data.count[item]} {item}
+                                                </span>
+                                            );
+                                        return null;
+                                    })}
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
                 <div className="flex-1">
@@ -175,8 +160,8 @@ const ShowDetails = ({
                     <span>{data.user.name}</span>
                     <h4 className="theme-text-h4">Date & Time</h4>
                     <span>
-                        {new Date(data.created_at).toLocaleDateString()} at{" "}
-                        {new Date(data.created_at).toLocaleTimeString()}
+                        {data.created_at.toLocaleDateString()} at{" "}
+                        {data.created_at.toLocaleTimeString()}
                     </span>
                     <h4 className="theme-text-h4">Action</h4>
                     <span>
@@ -202,17 +187,14 @@ export default function ShedActivityRoute() {
     const {
         transactions,
         transactionCount,
-        usernames,
+        users,
         offset,
         transactionDetails,
     } = useLoaderData<typeof loader>();
 
-    console.log(transactionDetails);
     const [searchParams] = useSearchParams();
 
-    invariant(transactions, "Couldn't load latest transactions");
-
-    const totalPages = Math.ceil(transactionCount / PER_PAGE);
+    const finalPage = Math.ceil(transactionCount / PER_PAGE);
 
     const [nameFilter, setNameFilter] = useState(false);
     const [nameFilterSelected, setNameFilterSelected] = useState("DEFAULT");
@@ -220,7 +202,7 @@ export default function ShedActivityRoute() {
     useEffect(() => {
         setNameFilterSelected(searchParams.get("filter-by-user") || "DEFAULT");
         setNameFilter(Boolean(searchParams.get("filter-by-user")));
-    }, []);
+    }, [searchParams]);
 
     const detailsLink = new URLSearchParams(searchParams);
 
@@ -229,7 +211,14 @@ export default function ShedActivityRoute() {
 
     return (
         <section>
-            {transactionDetails && <ShowDetails data={transactionDetails} />}
+            {transactionDetails && (
+                <ShowDetails
+                    data={{
+                        ...transactionDetails,
+                        created_at: new Date(transactionDetails.created_at),
+                    }}
+                />
+            )}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                 <div className="basis-1/3">
                     <h2 className="theme-text-h3">All</h2>
@@ -252,7 +241,7 @@ export default function ShedActivityRoute() {
                             value={"DEFAULT"}>
                             Filter by user
                         </option>
-                        {usernames.map((user) => (
+                        {users.map((user) => (
                             <option
                                 key={user.id}
                                 value={user.id}>
@@ -314,16 +303,15 @@ export default function ShedActivityRoute() {
                                     created_at: new Date(item.created_at),
                                 }}
                                 detailsLink={detailsLink.toString()}
-                                details={transactionDetails}
                             />
                         );
                     })}
                     {/* row 2 */}
                 </tbody>
             </table>
-            {totalPages > 1 && (
+            {finalPage > 1 && (
                 <Pagination
-                    totalPages={totalPages}
+                    totalPages={finalPage}
                     pageParam="page"
                 />
             )}

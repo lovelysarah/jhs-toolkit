@@ -24,7 +24,7 @@ import type {
 import { getUsersThatHaveShedTransactions } from "~/api/user";
 
 // How many transactions to show per page
-const PER_PAGE = 10;
+const PER_PAGE = 7;
 
 type LoaderData = {
     users: UsersWithAShedTransaction;
@@ -223,8 +223,13 @@ export default function ShedActivityRoute() {
                 <div className="basis-1/3">
                     <h2 className="theme-text-h3">All</h2>
                     <span className="text-sm">
-                        Displaying {offset + 1} to{" "}
-                        {offset + transactions.length} of {transactionCount}
+                        {transactions.length > 1
+                            ? `Displaying items [${offset + 1} - ${
+                                  offset + transactions.length
+                              }] out of ${transactionCount}`
+                            : `Displaying item ${
+                                  offset + 1
+                              } out of ${transactionCount}`}
                     </span>
                 </div>
                 <Form className="basis-2/3 flex gap-2 items-center sm:justify-end my-2">

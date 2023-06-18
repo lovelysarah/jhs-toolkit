@@ -22,7 +22,7 @@ async function seed() {
             data: {
                 ...item,
                 location: "FLANDERS",
-                quantity: Math.floor(Math.random() * 10) + 2,
+                quantity: Math.floor(Math.random() * 4) + 2,
                 note: "This is a test",
                 last_checked_out_by: "YESS Group",
             },

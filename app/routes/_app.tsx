@@ -23,7 +23,9 @@ export const loader: LoaderFunction = async ({ request }) => {
 export default function AppLayoutRoute() {
     const { isSignedIn, accountType } = useLoaderData<LoaderData>();
     return (
-        <main className="bg-base-100 w-full">
+        <main
+            className="bg-base-100 w-full"
+            id="root">
             <header className="col-center px-4">
                 <div className="theme-box-width">
                     <Navbar

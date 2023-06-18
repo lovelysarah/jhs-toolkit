@@ -1,18 +1,25 @@
-import { json } from "@remix-run/node";
-import { Form, Link, useLoaderData, useNavigation } from "@remix-run/react";
+import { LoaderArgs, json } from "@remix-run/node";
+import {
+    Form,
+    Link,
+    useLoaderData,
+    useNavigation,
+    useRevalidator,
+} from "@remix-run/react";
 import clsx from "clsx";
 import invariant from "tiny-invariant";
 import { CheckoutItems } from "~/api/inventory";
 import { getCollectionOfItems } from "~/api/item";
 import { getUserInfoById } from "~/api/user";
-import { countItemsInCart, getAdjustedStock } from "~/utils/cart";
+import { countItemsInCart, adjustForQuantities } from "~/utils/cart";
 import { getCartSession } from "~/utils/cart.server";
 import { getUserId } from "~/utils/session.server";
+import Modal from "react-modal";
 
 import type { ActionFunction, LoaderFunction } from "@remix-run/node";
 import type { CollectionOfItems } from "~/api/item";
 import type { UserInfo } from "~/api/user";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type LoaderData = {
     user: UserInfo;
@@ -20,28 +27,48 @@ type LoaderData = {
     cartCount: number;
     counts: { [key: string]: number };
 };
+const customStyles = {
+    content: {
+        top: "50%",
+        left: "50%",
+        right: "auto",
+        bottom: "auto",
+        maxWidth: "500px",
+        marginRight: "-50%",
+        borderRadius: "10px",
+        transform: "translate(-50%, -50%)",
+    },
+    overlay: {
+        zIndex: 1000,
+    },
+};
 
-export const loader: LoaderFunction = async ({ request }) => {
+Modal.setAppElement("#root");
+
+export const loader = async ({ request }: LoaderArgs) => {
     const id = await getUserId(request);
     // This scenerio should never happen
     invariant(id, "User ID is not defined");
 
     const cartSession = await getCartSession(request);
     const cart = cartSession.getCart();
-    const items = await getCollectionOfItems(cart);
 
-    const { updatedCart } = getAdjustedStock(items, cart);
+    const adjustment = await adjustForQuantities(cart);
+    cartSession.updateCart(adjustment.cart);
 
-    const itemCounts = countItemsInCart(updatedCart);
+    const itemCounts = countItemsInCart(adjustment.cart);
 
-    const data: LoaderData = {
+    const data = {
         user: await getUserInfoById(id),
-        items: items,
-        cartCount: items.length,
+        shouldRevalidate: cart !== adjustment.cart,
+        items: adjustment.stock,
+        cartCount: adjustment.cart.length,
         counts: itemCounts,
     };
 
-    return json(data);
+    return json(data, {
+        headers: { "Set-Cookie": await cartSession.commit() },
+    });
 };
 
 export const action: ActionFunction = async ({ request }) => {
@@ -62,11 +89,27 @@ export const action: ActionFunction = async ({ request }) => {
 };
 
 export default function ShedCheckOutRoute() {
-    const { items, counts, user, cartCount } = useLoaderData<LoaderData>();
+    const { items, counts, user, cartCount, shouldRevalidate } =
+        useLoaderData<typeof loader>();
+
+    const revalidator = useRevalidator();
+    useEffect(() => {
+        if (shouldRevalidate) revalidator.revalidate();
+    }, []);
 
     const [addingANote, setAddingANote] = useState(false);
 
     const navigation = useNavigation();
+
+    const [modalIsOpen, setModalIsOpen] = useState(false);
+
+    function openModal() {
+        setModalIsOpen(true);
+    }
+
+    function closeModal() {
+        setModalIsOpen(false);
+    }
 
     invariant(user, "Check out information not found");
 
@@ -108,7 +151,7 @@ export default function ShedCheckOutRoute() {
                 )}
             </div>
 
-            <aside className="z-20 w-full md:basis-2/6 sticky top-0 md:top-6 border p-8 rounded-lg border-base-300 bg-base-100">
+            <aside className="w-full md:basis-2/6 sticky top-0 md:top-6 border p-8 rounded-lg border-base-300 bg-base-100">
                 <h2 className="theme-text-h3">Information</h2>
                 <Form
                     method="POST"
@@ -131,10 +174,38 @@ export default function ShedCheckOutRoute() {
                             <span className="font-bold">{user.name}</span>
                         </span>
                     )}
+                    <button
+                        type="button"
+                        onClick={openModal}
+                        className="btn btn-warning">
+                        Open Modal
+                    </button>
+                    <Modal
+                        preventScroll={true}
+                        isOpen={modalIsOpen}
+                        onRequestClose={closeModal}
+                        style={customStyles}
+                        contentLabel="Example Modal">
+                        <div>
+                            <h2 className="theme-text-h3 theme-text-gradient">
+                                The quantities have changed!
+                            </h2>
+                            <p>
+                                Lorem ipsum dolor sit amet consectetur
+                                adipisicing elit. At, reiciendis neque doloribus
+                                animi quae deleniti accusamus, quas dolores
+                                consequuntur non corporis facilis minima
+                                corrupti alias aspernatur vero, iure pariatur
+                                distinctio.
+                            </p>
+                        </div>
+                        <button onClick={closeModal}>close</button>
+                        <div>I am a modal</div>
+                    </Modal>
                     {addingANote ? (
                         <>
                             <textarea
-                                className="textarea"
+                                className="textarea textarea-primary"
                                 placeholder="Bio"></textarea>
                             <button
                                 className="btn btn-error"
@@ -150,6 +221,7 @@ export default function ShedCheckOutRoute() {
                         </button>
                     )}
                     <button
+                        disabled={!shouldRevalidate}
                         className={clsx("btn btn-primary", {
                             "btn-warning": submitting,
                             "btn-disabled": cartCount < 1,

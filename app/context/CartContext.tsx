@@ -1,22 +1,35 @@
-import React, { ReactNode, createContext, useState } from "react";
+import type { ReactNode } from "react";
+import React, { createContext, useState } from "react";
 
-type CartContext = {
-    count: number;
-    update: (count: number) => void;
+type CartContextProps = {
+    diffs: { [key: string]: number };
+    updateDiffs: (newDiffs: { [key: string]: number }) => void;
 };
 
-const CartContext = createContext<CartContext | undefined>(undefined);
+const CartContext = createContext<CartContextProps | undefined>(undefined);
 
 // Create CartContextProvider component
 export const CartProvider = ({ children }: { children: ReactNode }) => {
-    const [count, setCount] = useState(0);
+    const [diffs, setDiffs] = useState<{ [key: string]: number }>({});
 
-    const update = (count: number) => {
-        setCount(count);
+    const updateDiffs = (newDiffs: { [key: string]: number }) => {
+        setDiffs((prev) => {
+            const adjustedDiffs = Object.keys(newDiffs).reduce((acc, key) => {
+                console.log({ key, acc });
+                if (!prev[key]) {
+                    acc[key] = newDiffs[key];
+                    return acc;
+                }
+                acc[key] = acc[key] + newDiffs[key];
+                return acc;
+            }, prev);
+            // Add new diffs to existing diffs
+            return { ...prev, ...adjustedDiffs };
+        });
     };
 
     return (
-        <CartContext.Provider value={{ count, update }}>
+        <CartContext.Provider value={{ diffs, updateDiffs }}>
             {children}
         </CartContext.Provider>
     );

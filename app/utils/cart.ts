@@ -1,4 +1,5 @@
 import type { Item } from "@prisma/client";
+import { getAllItems, getCollectionOfItems } from "~/api/item";
 
 export const countItemsInCart = (cart: string[]): { [key: string]: number } =>
     cart.reduce((acc: any, item) => {
@@ -14,15 +15,28 @@ export type AdjustedItem = Item & {
     adjusted: boolean;
 };
 
-export const getAdjustedStock = (
-    items: Item[],
-    cart: string[]
-): { adjustedStock: AdjustedItem[]; updatedCart: string[] } => {
+type AdjustmentInfo = {
+    stock: AdjustedItem[];
+    cart: string[];
+    diff: { [key: string]: number };
+};
+
+export const adjustForQuantities = async (
+    cart: string[],
+    allItems: boolean = false
+): Promise<AdjustmentInfo> => {
+    // Should it get all items or just the ones in the cart?
+    const items = allItems
+        ? await getAllItems()
+        : await getCollectionOfItems(cart);
+
     const newCart = [...cart];
+
+    // List of items that have been adjusted and by how much
+    const difference = {} as { [key: string]: number };
 
     const removeItemFromCart = (item: Item, amount: number) => {
         for (let i = 0; i < amount; i++) {
-            console.log("Remove from cart", item.name);
             // Remove element
             const index = newCart.indexOf(item.name);
             console.log({ index });
@@ -60,6 +74,8 @@ export const getAdjustedStock = (
         // Calculate difference
         const diff = baseQuantity - amountInCart;
 
+        difference[item.name] = diff;
+
         const removeSteps = diff * -1;
 
         removeItemFromCart(item, removeSteps);
@@ -72,5 +88,5 @@ export const getAdjustedStock = (
             ...extraInfo,
         };
     });
-    return { adjustedStock: newItemList, updatedCart: newCart };
+    return { stock: newItemList, cart: newCart, diff: difference };
 };

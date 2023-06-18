@@ -4,38 +4,34 @@ import { useRevalidator } from "@remix-run/react";
 
 import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
-import { getAdjustedStock, countItemsInCart } from "~/utils/cart";
+import { adjustForQuantities, countItemsInCart } from "~/utils/cart";
 import { getCartSession } from "~/utils/cart.server";
-import { getAllItems } from "~/api/item";
 
 import type { AdjustedItem } from "~/utils/cart";
 import type { Dispatch, PropsWithChildren, SetStateAction } from "react";
 import type { Category } from "@prisma/client";
-import type { LoaderFunction, SerializeFrom } from "@remix-run/node";
+import type { SerializeFrom, LoaderArgs } from "@remix-run/node";
+import { useCart } from "~/context/CartContext";
 
-type LoaderData = {
-    items: AdjustedItem[];
-    initialCart: string[];
-    itemId: string | undefined;
-};
-
-export const loader: LoaderFunction = async ({ request, params }) => {
+export const loader = async ({ request, params }: LoaderArgs) => {
     const cartSession = await getCartSession(request);
 
     const cart = cartSession.getCart();
-    const items = await getAllItems();
 
-    const { adjustedStock, updatedCart } = getAdjustedStock(items, cart);
+    const adjustment = await adjustForQuantities(cart, true);
 
-    // cartSession.updateCart(updatedCart);
+    cartSession.updateCart(adjustment.cart);
 
-    const data: LoaderData = {
+    const data = {
         itemId: params.itemId,
-        initialCart: updatedCart,
-        items: adjustedStock,
+        initialCart: adjustment.cart,
+        items: adjustment.stock,
+        diff: adjustment.diff,
     };
 
-    return json(data);
+    return json(data, {
+        headers: { "Set-cookie": await cartSession.commit() },
+    });
 };
 
 type CategoryHeaderProps = {
@@ -62,6 +58,7 @@ const CategoryHeader = ({ category }: CategoryHeaderProps) => {
 type ItemCardProps = {
     item: SerializeFrom<AdjustedItem>;
     selectHandler: Dispatch<SetStateAction<string | undefined>>;
+    adjusted: boolean;
     expanded: boolean;
 } & PropsWithChildren;
 
@@ -69,6 +66,7 @@ const ItemCard = ({
     item,
     selectHandler,
     expanded,
+    adjusted,
     children,
 }: ItemCardProps) => {
     // Toggles card expansion
@@ -107,10 +105,8 @@ const ItemCard = ({
                         {item.checked_out > 0
                             ? `${item.checked_out} ${item.name} in cart`
                             : item.name}{" "}
-                        {item.adjusted && (
-                            <span className="badge ml-2">
-                                Auto-adjusted for stock
-                            </span>
+                        {adjusted && (
+                            <span className="badge ml-2">Adjusted ()</span>
                         )}
                     </span>
                     <span className="basis-[20%] md:flex-1 text-right md:text-left">
@@ -127,7 +123,7 @@ const ItemCard = ({
 type AwaitingCheckoutProps = {
     cart: string[];
     clearCart: () => void;
-    lastUpdated: Date;
+    lastUpdated: Date | undefined;
 };
 const AwaitingCheckout = ({
     cart,
@@ -141,7 +137,10 @@ const AwaitingCheckout = ({
             <div className="flex justify-between items-center mb-2">
                 <h4 className="theme-text-h4">Awaiting check out</h4>
                 <span>
-                    Stocks last updated {lastUpdated.toLocaleTimeString()}
+                    Stocks last updated{" "}
+                    {lastUpdated
+                        ? lastUpdated.toLocaleTimeString()
+                        : "Loading.."}
                 </span>
             </div>
             <div className="flex justify-between items-start px-2 py-4 rounded-lg">
@@ -175,14 +174,15 @@ export default function ShedSummaryRoute() {
     // Get loader data
     const revalidator = useRevalidator();
 
-    const { items, initialCart, itemId } = useLoaderData<LoaderData>();
+    const { items, initialCart, itemId, diff } = useLoaderData<typeof loader>();
 
+    const cartCTX = useCart();
     // Initialize cart
     const [cart, setCart] = useState<typeof initialCart>(initialCart);
 
     // Used to prevent a POST request if cart and inital cart are out of sync
     // const [syncing, setSyncing] = useState(false);
-    const [lastUpdated, setLastUpdated] = useState(new Date());
+    const [lastUpdated, setLastUpdated] = useState<Date>();
 
     // Initialized selected item
     const [selected, setSelected] = useState<string | undefined>(itemId);
@@ -209,6 +209,8 @@ export default function ShedSummaryRoute() {
     useEffect(() => {
         if (initialCart.length === cart.length) return;
 
+        cartCTX.updateDiffs(diff);
+        console.log({ diff, cartCTX: cartCTX.diffs });
         setCart(initialCart);
     }, [initialCart]);
 
@@ -238,6 +240,7 @@ export default function ShedSummaryRoute() {
                     lastUpdated={lastUpdated}
                 />
             )}
+            <pre>{JSON.stringify(cartCTX.diffs, null, 2)}</pre>
             <div className="flex flex-col gap-2">
                 {items.map((item) => {
                     let addHeader = false;
@@ -275,6 +278,9 @@ export default function ShedSummaryRoute() {
                             )}
 
                             <ItemCard
+                                adjusted={Object.keys(cartCTX.diffs).includes(
+                                    item.name
+                                )}
                                 item={item}
                                 selectHandler={setSelected}
                                 expanded={selected === item.shortId}>

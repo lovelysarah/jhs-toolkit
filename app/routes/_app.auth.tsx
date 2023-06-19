@@ -5,6 +5,8 @@ import {
     redirect,
 } from "@remix-run/node";
 import { useActionData, useSearchParams } from "@remix-run/react";
+import { LogIn } from "lucide-react";
+import { FormAlert } from "~/components/FormAlert";
 import { VALID_URLS } from "~/constant";
 import { FieldErrors, FormActionData } from "~/types/form";
 import { createUserSession, getUserId, login } from "~/utils/session.server";
@@ -57,7 +59,7 @@ export const action: ActionFunction = async ({ request }) => {
         return badRequest({
             fieldErrors: null,
             fields,
-            formError: `Username/Password combination is incorrect`,
+            formError: `Invalid credentials`,
         });
     }
 
@@ -68,35 +70,43 @@ export default function AuthRoute() {
     const actionData = useActionData<SignInActionData>();
     const [searchParams] = useSearchParams();
 
-    console.log(actionData);
     return (
-        <div className="flex flex-col items-start">
-            <h1 className="theme-text-h2 theme-text-gradient my-4">
-                Authentication
-            </h1>
-            <form
-                method="POST"
-                className="flex flex-col justify-center gap-2 w-full">
-                <input
-                    type="hidden"
-                    name="redirectTo"
-                    value={searchParams.get("redirectTo") ?? undefined}
-                />
-                <input
-                    name="username"
-                    defaultValue={actionData?.fields?.username ?? ""}
-                    className="input input-bordered"
-                    placeholder="Username"></input>
-                <input
-                    name="password"
-                    className="input input-bordered"
-                    placeholder="Password"></input>
-                <button
-                    type="submit"
-                    className="btn btn-primary">
-                    Sign In
-                </button>
-            </form>
+        <div className="flex flex-col sm:items-center justify-start w-full theme-padding-y">
+            <div className="max-w-[550px]">
+                <h1 className="theme-text-h2 my-4 self-start flex gap-2 items-center">
+                    <LogIn size={36} />
+                    Sign in
+                </h1>
+                <form
+                    method="POST"
+                    className="sm:min-w-[550px] flex flex-col justify-center gap-2 w-full">
+                    <input
+                        type="hidden"
+                        name="redirectTo"
+                        value={searchParams.get("redirectTo") ?? undefined}
+                    />
+                    <input
+                        name="username"
+                        type="text"
+                        defaultValue={actionData?.fields?.username ?? ""}
+                        className="input input-bordered"
+                        placeholder="Username"></input>
+                    <input
+                        name="password"
+                        type="password"
+                        className="input input-bordered"
+                        placeholder="Password"></input>
+                    <FormAlert
+                        variant="error"
+                        condition={actionData?.formError}
+                    />
+                    <button
+                        type="submit"
+                        className="btn btn-primary">
+                        Sign In
+                    </button>
+                </form>
+            </div>
         </div>
     );
 }

@@ -1,17 +1,31 @@
 import { json } from "@remix-run/node";
-import { Link, Outlet, useFetcher, useLoaderData } from "@remix-run/react";
+import {
+    Link,
+    Outlet,
+    useFetcher,
+    useLoaderData,
+    useNavigation,
+    useSubmit,
+} from "@remix-run/react";
 import { useRevalidator } from "@remix-run/react";
 
 import clsx from "clsx";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { useCart } from "~/context/CartContext";
 import { adjustForQuantities, countItemsInCart } from "~/utils/cart";
 import { getCartSession } from "~/utils/cart.server";
 
 import type { AdjustedItem } from "~/utils/cart";
+import type {
+    FetcherWithComponents,
+    SubmitFunction,
+    SubmitOptions,
+} from "@remix-run/react";
 import type { Dispatch, PropsWithChildren, SetStateAction } from "react";
 import type { Category } from "@prisma/client";
 import type { SerializeFrom, LoaderArgs } from "@remix-run/node";
-import { useCart } from "~/context/CartContext";
+
+const POLLING_RATE_MS = 10000;
 
 export const loader = async ({ request, params }: LoaderArgs) => {
     const cartSession = await getCartSession(request);
@@ -58,6 +72,7 @@ const CategoryHeader = ({ category }: CategoryHeaderProps) => {
 type ItemCardProps = {
     item: SerializeFrom<AdjustedItem>;
     selectHandler: Dispatch<SetStateAction<string | undefined>>;
+    diff: number;
     adjusted: boolean;
     expanded: boolean;
 } & PropsWithChildren;
@@ -66,6 +81,7 @@ const ItemCard = ({
     item,
     selectHandler,
     expanded,
+    diff,
     adjusted,
     children,
 }: ItemCardProps) => {
@@ -106,7 +122,9 @@ const ItemCard = ({
                             ? `${item.checked_out} ${item.name} in cart`
                             : item.name}{" "}
                         {adjusted && (
-                            <span className="badge ml-2">Adjusted ()</span>
+                            <span className="badge ml-2">
+                                Adjusted ({diff})
+                            </span>
                         )}
                     </span>
                     <span className="basis-[20%] md:flex-1 text-right md:text-left">
@@ -121,58 +139,163 @@ const ItemCard = ({
 };
 
 type AwaitingCheckoutProps = {
+    diffs: { [key: string]: number };
     cart: string[];
-    clearCart: () => void;
     lastUpdated: Date | undefined;
 };
 const AwaitingCheckout = ({
+    diffs,
     cart,
-    clearCart,
     lastUpdated,
 }: AwaitingCheckoutProps) => {
+    const clearCart = useFetcher();
+
     const itemCounts = countItemsInCart(cart);
-    const uniqueCart = [...new Set(cart)];
+    const uniqueCart = [...new Set(cart)].sort();
     return (
-        <>
-            <div className="flex justify-between items-center mb-2">
-                <h4 className="theme-text-h4">Awaiting check out</h4>
-                <span>
-                    Stocks last updated{" "}
-                    {lastUpdated
-                        ? lastUpdated.toLocaleTimeString()
-                        : "Loading.."}
-                </span>
-            </div>
-            <div className="flex justify-between items-start px-2 py-4 rounded-lg">
-                <div className="flex gap-2 sm:basis-[50%] md:basis-[70%] flex-wrap">
-                    {uniqueCart.map((item) => {
-                        const count = itemCounts[item];
-                        return (
-                            <span
-                                className="badge badge-neutral badge-lg"
-                                key={item}>
-                                {count} {item}
-                            </span>
-                        );
-                    })}
+        <div className="hidden bottom-0 left-0 right-0 md:fixed bg-base-200 px-8 pt-2 pb-8 rounded-t-2xl z-30">
+            <div className="bg-base-100/90 rounded-2xl relative border-base-300 border z-30 p-4">
+                <div className="flex justify-between items-center mb-2">
+                    <div className="flex gap-2">
+                        <h4 className="theme-text-h4">Awaiting check out </h4>
+
+                        <span className="opacity-50">
+                            {lastUpdated
+                                ? `Stock last updated at ${lastUpdated.toLocaleTimeString()}`
+                                : `Stock updates every ${
+                                      POLLING_RATE_MS / 1000
+                                  } seconds`}
+                        </span>
+                    </div>
+                    <div className="flex gap-2">
+                        <span className="badge badge-lg">In Cart</span>
+                        <span className="badge badge-lg badge-primary">
+                            Quantity adjusted
+                        </span>
+                    </div>
                 </div>
-                <ul className="bg-base-100 rounded-lg">
-                    <li>
-                        <button
-                            className="border btn btn-error px-4 py-2"
-                            onClick={(e) => clearCart()}>
-                            Clear
-                        </button>
-                    </li>
-                </ul>
+                <div className="flex justify-between items-start px-2 py-4 rounded-lg">
+                    <div className="flex gap-2  flex-wrap">
+                        {uniqueCart.map((item) => {
+                            const adjusted = Object.keys(diffs).includes(item);
+                            const count = itemCounts[item];
+                            return (
+                                <span
+                                    className={clsx(
+                                        "shadow-lg badge badge-lg",
+                                        {
+                                            "badge-primary": adjusted,
+                                        }
+                                    )}
+                                    key={item}>
+                                    {count} {item}
+                                </span>
+                            );
+                        })}
+                    </div>
+                    <ul className="bg-base-100 rounded-lg">
+                        <li>
+                            <button
+                                className="border btn btn-error px-4 py-2"
+                                onClick={(e) => {
+                                    clearCart.submit(
+                                        { cart: JSON.stringify([]) },
+                                        {
+                                            action: "/action/update-cart",
+                                            method: "POST",
+                                        }
+                                    );
+                                }}>
+                                Clear
+                            </button>
+                        </li>
+                    </ul>
+                </div>
             </div>
-        </>
+        </div>
+    );
+};
+
+type InventoryActionProps = {
+    item: AdjustedItem;
+    cart: string[];
+    selected: boolean;
+};
+
+const InventoryAction = ({
+    item,
+    cart,
+    selected,
+}: InventoryActionProps): JSX.Element | null => {
+    const inventoryAction = useFetcher();
+
+    const submitOptions: SubmitOptions = {
+        action: "/action/update-cart",
+        method: "POST",
+    };
+
+    const addToCheckout = async (toAdd: string) => {
+        item.quantity = item.quantity - 1;
+
+        inventoryAction.submit(
+            {
+                cart: JSON.stringify([...cart, toAdd]),
+                action: "add",
+                item: item.name,
+            },
+            submitOptions
+        );
+    };
+
+    const removeFromCheckout = (toRemove: string) => {
+        // Finds first instance on the item to remove.
+        const idx = cart.findIndex((cartItem) => cartItem === toRemove);
+
+        // Removes first instance of the item to remove
+        const cartCopy = [...cart];
+        cartCopy.splice(idx, 1);
+
+        const string = JSON.stringify(cartCopy);
+
+        inventoryAction.submit(
+            { cart: string, action: "remove", item: item.name },
+            submitOptions
+        );
+
+        console.log({ inventoryAction });
+
+        item.quantity = item.quantity + 1;
+    };
+    return (
+        <div className="flex gap-2 w-full sm:w-[50%] md:w-[30%]">
+            {item.quantity !== 0 && (
+                <button
+                    className="btn btn-neutral flex-1"
+                    type="button"
+                    onClick={() => addToCheckout(item.name)}>
+                    Add
+                </button>
+            )}
+            {item.checked_out > 0 && (
+                <button
+                    className="btn btn-error flex-1"
+                    type="button"
+                    onClick={() => removeFromCheckout(item.name)}>
+                    Remove
+                </button>
+            )}
+            {selected && (
+                <button className="btn btn-warning flex-1">Modify</button>
+            )}
+        </div>
     );
 };
 
 export default function ShedSummaryRoute() {
     // Get loader data
-    const revalidator = useRevalidator();
+    // const revalidator = useRevalidator();
+
+    const inventoryAction = useSubmit();
 
     const { items, initialCart, itemId, diff } = useLoaderData<typeof loader>();
 
@@ -190,17 +313,12 @@ export default function ShedSummaryRoute() {
     // Last category assigned to headers
     let lastCategory: Category | null = null;
 
-    const persistCart = useFetcher();
-    const persistCartRef = useRef(persistCart);
-    const mountRun = useRef(false);
-
     // TODO: Fix dependencies
     useEffect(() => {
-        const pollingRate = 5000;
         const polling = setInterval(() => {
             setLastUpdated(new Date());
-            revalidator.revalidate();
-        }, pollingRate);
+            // revalidator.revalidate();
+        }, POLLING_RATE_MS);
         return () => {
             clearInterval(polling);
         };
@@ -210,38 +328,21 @@ export default function ShedSummaryRoute() {
         if (initialCart.length === cart.length) return;
 
         cartCTX.updateDiffs(diff);
-        console.log({ diff, cartCTX: cartCTX.diffs });
         setCart(initialCart);
     }, [initialCart]);
-
-    useEffect(() => {
-        persistCartRef.current = persistCart;
-    }, [persistCart]);
-
-    useEffect(() => {
-        if (!mountRun.current) {
-            mountRun.current = true;
-            return;
-        }
-
-        const string = JSON.stringify(cart);
-        persistCartRef.current.submit(
-            { cart: string },
-            { action: "/action/update-cart", method: "POST" }
-        );
-    }, [cart]);
+    console.log({ inventoryAction });
 
     return (
         <>
             {initialCart.length > 0 && (
                 <AwaitingCheckout
+                    diffs={cartCTX.diffs}
                     cart={initialCart}
-                    clearCart={() => setCart([])}
                     lastUpdated={lastUpdated}
                 />
             )}
             <pre>{JSON.stringify(cartCTX.diffs, null, 2)}</pre>
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2 pb-8">
                 {items.map((item) => {
                     let addHeader = false;
                     if (lastCategory !== item.category) {
@@ -249,28 +350,6 @@ export default function ShedSummaryRoute() {
                         lastCategory = item.category;
                     }
 
-                    const addToCheckout = (toAdd: string) => {
-                        item.quantity = item.quantity - 1;
-                        setCart((prev) => [...prev, toAdd]);
-                    };
-
-                    const removeFromCheckout = (toRemove: string) => {
-                        // Finds first instance on the item to remove.
-                        const idx = cart.findIndex(
-                            (cartItem) => cartItem === toRemove
-                        );
-
-                        // Updates state to updated array
-                        // Removes first instance of the item to remove
-
-                        setCart((prev) => {
-                            const copy = [...prev];
-                            copy.splice(idx, 1);
-                            return copy;
-                        });
-
-                        item.quantity = item.quantity + 1;
-                    };
                     return (
                         <div key={item.shortId}>
                             {addHeader && (
@@ -281,34 +360,20 @@ export default function ShedSummaryRoute() {
                                 adjusted={Object.keys(cartCTX.diffs).includes(
                                     item.name
                                 )}
+                                diff={cartCTX.diffs[item.name]}
                                 item={item}
                                 selectHandler={setSelected}
                                 expanded={selected === item.shortId}>
-                                <div className="flex gap-2 w-full sm:w-[50%] md:w-[30%]">
-                                    {item.quantity !== 0 && (
-                                        <button
-                                            className="btn btn-neutral flex-1"
-                                            onClick={(e) =>
-                                                addToCheckout(item.name)
-                                            }>
-                                            Add
-                                        </button>
-                                    )}
-                                    {item.checked_out > 0 && (
-                                        <button
-                                            className="btn btn-error flex-1"
-                                            onClick={(e) =>
-                                                removeFromCheckout(item.name)
-                                            }>
-                                            Remove
-                                        </button>
-                                    )}
-                                    {selected === item.shortId && (
-                                        <button className="btn btn-warning flex-1">
-                                            Modify
-                                        </button>
-                                    )}
-                                </div>
+                                <InventoryAction
+                                    selected={selected === item.shortId}
+                                    cart={cart}
+                                    item={{
+                                        ...item,
+                                        last_checked_out_at: new Date(
+                                            item.last_checked_out_at
+                                        ),
+                                    }}
+                                />
                             </ItemCard>
                         </div>
                     );

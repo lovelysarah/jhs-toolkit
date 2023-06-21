@@ -1,4 +1,4 @@
-import { LoaderArgs, json } from "@remix-run/node";
+import { json } from "@remix-run/node";
 import {
     Form,
     Link,
@@ -9,24 +9,15 @@ import {
 import clsx from "clsx";
 import invariant from "tiny-invariant";
 import { CheckoutItems } from "~/api/inventory";
-import { getCollectionOfItems } from "~/api/item";
-import { getUserInfoById } from "~/api/user";
 import { countItemsInCart, adjustForQuantities } from "~/utils/cart";
-import { getCartSession } from "~/utils/cart.server";
 import { getUserId } from "~/utils/session.server";
 import Modal from "react-modal";
 
-import type { ActionFunction, LoaderFunction } from "@remix-run/node";
-import type { CollectionOfItems } from "~/api/item";
-import type { UserInfo } from "~/api/user";
+import type { ActionFunction, LoaderArgs } from "@remix-run/node";
 import { useEffect, useState } from "react";
+import { getUserInfoById } from "~/api/user";
+import { db } from "~/utils/db.server";
 
-type LoaderData = {
-    user: UserInfo;
-    items: CollectionOfItems;
-    cartCount: number;
-    counts: { [key: string]: number };
-};
 const customStyles = {
     content: {
         top: "50%",
@@ -46,55 +37,73 @@ const customStyles = {
 Modal.setAppElement("#root");
 
 export const loader = async ({ request }: LoaderArgs) => {
-    const id = await getUserId(request);
-    // This scenerio should never happen
-    invariant(id, "User ID is not defined");
+    const userId = await getUserId(request);
 
-    const cartSession = await getCartSession(request);
-    const cart = cartSession.getCart();
+    invariant(userId, "Was expecting userId");
 
-    const adjustment = await adjustForQuantities(cart);
-    cartSession.updateCart(adjustment.cart);
+    const { shed_cart } = await db.user.findUniqueOrThrow({
+        where: { id: userId },
+        select: { shed_cart: true },
+    });
 
+    const adjustment = await adjustForQuantities(shed_cart);
     const itemCounts = countItemsInCart(adjustment.cart);
 
     const data = {
-        user: await getUserInfoById(id),
-        shouldRevalidate: cart !== adjustment.cart,
+        user: await getUserInfoById(userId),
+        shouldRevalidate: shed_cart !== adjustment.cart,
+        cart: adjustment.cart,
         items: adjustment.stock,
         cartCount: adjustment.cart.length,
         counts: itemCounts,
     };
 
-    return json(data, {
-        headers: { "Set-Cookie": await cartSession.commit() },
-    });
+    return json(data);
 };
 
 export const action: ActionFunction = async ({ request }) => {
     const userId = await getUserId(request);
     invariant(userId, "Could not check out cart");
 
-    const { getCart, commit, updateCart } = await getCartSession(request);
-    const cart = getCart();
+    const form = await request.formData();
+    const cart = form.get("cart");
 
-    await CheckoutItems(userId, cart);
+    if (typeof cart !== "string") {
+        return json({ success: false }, { status: 400 });
+    }
 
-    updateCart([]);
+    // const { shed_cart } = await db.user.findUniqueOrThrow({
+    // where: { id: userId },
+    // select: { shed_cart: true },
+    // });
 
-    return json(
-        { success: true },
-        { headers: { "Set-Cookie": await commit() } }
-    );
+    await CheckoutItems(userId, JSON.parse(cart));
+
+    return json({ success: true });
 };
 
 export default function ShedCheckOutRoute() {
-    const { items, counts, user, cartCount, shouldRevalidate } =
+    const { items, counts, user, cartCount, cart, shouldRevalidate } =
         useLoaderData<typeof loader>();
 
     const revalidator = useRevalidator();
     useEffect(() => {
-        if (shouldRevalidate) revalidator.revalidate();
+        // Updates the updatedTime and reloads the data
+        const revalidate = () => {
+            revalidator.revalidate();
+        };
+
+        // When the window is focused, revalidate and restart interval
+        const onFocus = () => {
+            revalidate();
+        };
+
+        window.addEventListener("focus", onFocus);
+
+        return () => {
+            // Cleanup
+            window.removeEventListener("focus", onFocus);
+        };
     }, []);
 
     const [addingANote, setAddingANote] = useState(false);
@@ -156,6 +165,10 @@ export default function ShedCheckOutRoute() {
                 <Form
                     method="POST"
                     className="flex flex-col gap-2">
+                    <input
+                        name="cart"
+                        type="hidden"
+                        value={JSON.stringify(cart)}></input>
                     {user.account_type === "GUEST" ? (
                         <>
                             <span>

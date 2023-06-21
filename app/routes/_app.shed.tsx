@@ -1,13 +1,22 @@
-import { LoaderFunction, json } from "@remix-run/node";
-import { NavLink, Outlet, useLoaderData, useLocation } from "@remix-run/react";
-import { getCartSession } from "~/utils/cart.server";
-import { requireUser } from "~/utils/session.server";
 import {
     PackagePlus,
     PackageMinus,
     Activity,
     ClipboardList,
+    Loader2,
 } from "lucide-react";
+import { json } from "@remix-run/node";
+import {
+    NavLink,
+    Outlet,
+    useLoaderData,
+    useLocation,
+    useNavigation,
+} from "@remix-run/react";
+import { requireUser } from "~/utils/session.server";
+import { db } from "~/utils/db.server";
+
+import type { LoaderFunction } from "@remix-run/node";
 
 type LoaderData = {
     cartCount: number;
@@ -15,13 +24,17 @@ type LoaderData = {
 
 export const loader: LoaderFunction = async ({ request }) => {
     // Redirect to login if user is not logged in
-    await requireUser(request);
+    const user = await requireUser(request)!;
 
     // Get cart from session
-    const cart = (await getCartSession(request)).getCart();
+    // const cart = (await getCartSession(request)).getCart();
+    const userInfo = await db.user.findUnique({
+        where: { id: user },
+        select: { shed_cart: true },
+    });
 
     const data: LoaderData = {
-        cartCount: cart.length,
+        cartCount: userInfo?.shed_cart.length || 0,
     };
 
     return json(data);
@@ -65,6 +78,8 @@ export default function ManageShedRoute() {
     // Get cart count from loader data
     const { cartCount } = useLoaderData<LoaderData>();
 
+    const nav = useNavigation();
+
     // Get the title from the URL
     const location = useLocation();
     const title = location.pathname.split("/")[2];
@@ -74,7 +89,7 @@ export default function ManageShedRoute() {
 
     return (
         <section className="">
-            <div className="z-20 flex flex-col md:flex-row md:justify-between md:items-center mb-4 gap-4 sticky top-14 md:static bg-base-100/95 p-4 border border-base-300 rounded-2xl mx-[-1rem] md:border-0">
+            <div className="z-20 flex flex-col md:flex-row md:justify-between md:items-center mb-4 gap-4 sticky top-2 mt-8 md:mt-0 md:static bg-base-100/95 p-4 border border-base-300 rounded-2xl mx-[-1rem] md:border-0">
                 <h1 className="theme-text-h2 theme-text-gradient hidden md:block">
                     {formattedTitle}
                 </h1>
@@ -84,6 +99,19 @@ export default function ManageShedRoute() {
                             link.text === "Check-out"
                                 ? `${link.text} (${cartCount})`
                                 : link.text;
+
+                        const DisplayCartCount = (): JSX.Element => {
+                            return (
+                                <>
+                                    <span className="hidden sm:inline-block">
+                                        {link.text}({cartCount})
+                                    </span>
+                                    <span className="sm:hidden">
+                                        {cartCount}
+                                    </span>
+                                </>
+                            );
+                        };
 
                         const activeClasses = "btn btn-outline btn-primary";
                         const checkoutRoute = link.href === "/shed/check-out";
@@ -107,10 +135,20 @@ export default function ManageShedRoute() {
                                         : passiveClasses + " flex gap-2"
                                 }
                                 end={link.end}>
-                                {link.icon}
-                                <span className="hidden sm:inline-block">
-                                    {text}
-                                </span>
+                                {nav.location?.pathname === link.href &&
+                                nav.state !== "idle" ? (
+                                    <Loader2 className="animate-spin" />
+                                ) : (
+                                    link.icon
+                                )}
+
+                                {link.text === "Check-out" ? (
+                                    <DisplayCartCount />
+                                ) : (
+                                    <span className="hidden sm:inline-block">
+                                        {text}
+                                    </span>
+                                )}
                             </NavLink>
                         );
                     })}

@@ -1,6 +1,19 @@
 import type { ACCOUNT_TYPE } from "@prisma/client";
 import { db } from "~/utils/db.server";
 import { generateHash } from "~/utils/hash";
+import type { Prisma } from "@prisma/client";
+
+export const getInfoFromUserById = async (
+    id: string,
+    select: Pick<Prisma.UserFindFirstOrThrowArgs, "select">
+) => {
+    return await db.user.findFirstOrThrow({
+        where: { id },
+        ...select,
+    });
+};
+
+export type InfoFromUser = Awaited<ReturnType<typeof getInfoFromUserById>>;
 
 export const getUserInfoById = async (id: string) => {
     return await db.user.findUnique({

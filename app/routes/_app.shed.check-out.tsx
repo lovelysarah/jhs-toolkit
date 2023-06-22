@@ -2,21 +2,31 @@ import { json } from "@remix-run/node";
 import {
     Form,
     Link,
+    useActionData,
     useLoaderData,
     useNavigation,
     useRevalidator,
 } from "@remix-run/react";
+import { useEffect, useRef, useState } from "react";
+
 import clsx from "clsx";
 import invariant from "tiny-invariant";
-import { CheckoutItems } from "~/api/inventory";
-import { countItemsInCart, adjustForQuantities } from "~/utils/cart";
-import { getUserId } from "~/utils/session.server";
 import Modal from "react-modal";
 
-import type { ActionFunction, LoaderArgs } from "@remix-run/node";
-import { useEffect, useState } from "react";
-import { getUserInfoById } from "~/api/user";
+import { CheckoutItems } from "~/api/inventory";
+import { getInfoFromUserById, getUserInfoById } from "~/api/user";
+import { countItemsInCart, adjustForQuantities } from "~/utils/cart";
+
 import { db } from "~/utils/db.server";
+import { badRequest } from "~/utils/request.server";
+import { getUserId } from "~/utils/session.server";
+
+import { FormAlert } from "~/components/FormAlert";
+
+import type { FieldErrors, FormActionData } from "~/types/form";
+import type { ActionFunction, LoaderArgs } from "@remix-run/node";
+
+const TRANSACTION_NOTE_MAX_LENGTH = 200;
 
 const customStyles = {
     content: {
@@ -33,6 +43,14 @@ const customStyles = {
         zIndex: 1000,
     },
 };
+
+type CheckoutFields = {
+    displayName?: string;
+    note?: string;
+};
+
+type CheckoutFieldErrors = FieldErrors<CheckoutFields>;
+type CheckoutActionData = FormActionData<CheckoutFieldErrors, CheckoutFields>;
 
 Modal.setAppElement("#root");
 
@@ -65,17 +83,57 @@ export const action: ActionFunction = async ({ request }) => {
     const userId = await getUserId(request);
     invariant(userId, "Could not check out cart");
 
+    const { account_type } = await getInfoFromUserById(userId, {
+        select: { account_type: true },
+    });
+
     const form = await request.formData();
     const cart = form.get("cart");
+    const note = form.get("note") || "";
+    const displayName = form.get("display-name") || "";
+    const hasNote = form.get("has-note") === "true";
 
-    if (typeof cart !== "string") {
-        return json({ success: false }, { status: 400 });
+    console.log({ cart, note, displayName, hasNote });
+
+    if (
+        typeof cart !== "string" ||
+        typeof note !== "string" ||
+        typeof displayName !== "string"
+    ) {
+        return badRequest<CheckoutActionData>({
+            formError: "Invalid Request",
+            fieldErrors: null,
+            fields: null,
+        });
     }
 
-    // const { shed_cart } = await db.user.findUniqueOrThrow({
-    // where: { id: userId },
-    // select: { shed_cart: true },
-    // });
+    const fields: CheckoutFields = { note, displayName };
+
+    const validateDisplayName = (displayName: string) => {
+        if (account_type === "GUEST" && !displayName)
+            return "Display name is required";
+    };
+    const validateNote = (note: string) => {
+        if (hasNote && note.length < 10)
+            return "Note should be at least 10 characters";
+        if (note.length > TRANSACTION_NOTE_MAX_LENGTH)
+            return `Note should not exceed ${TRANSACTION_NOTE_MAX_LENGTH} characters`;
+    };
+
+    const fieldErrors: CheckoutFieldErrors = {
+        displayName: validateDisplayName(displayName),
+        note: validateNote(note),
+    };
+
+    if (Object.values(fieldErrors).some(Boolean)) {
+        return badRequest<CheckoutActionData>({
+            formError: "Some fields are invalid",
+            fields,
+            fieldErrors,
+        });
+    }
+
+    console.log("VALID!@");
 
     await CheckoutItems(userId, JSON.parse(cart));
 
@@ -86,7 +144,20 @@ export default function ShedCheckOutRoute() {
     const { items, counts, user, cartCount, cart, shouldRevalidate } =
         useLoaderData<typeof loader>();
 
+    const action = useActionData<CheckoutActionData>();
+
     const revalidator = useRevalidator();
+    const navigation = useNavigation();
+
+    const noteFieldRef = useRef<HTMLTextAreaElement>(null);
+
+    const [displayName, setDisplayName] = useState<string | undefined>("");
+
+    const [showNoteField, setShowNoteField] = useState(false);
+    const [note, setNote] = useState("");
+
+    const [modalIsOpen, setModalIsOpen] = useState(false);
+
     useEffect(() => {
         // Updates the updatedTime and reloads the data
         const revalidate = () => {
@@ -106,12 +177,6 @@ export default function ShedCheckOutRoute() {
         };
     }, []);
 
-    const [addingANote, setAddingANote] = useState(false);
-
-    const navigation = useNavigation();
-
-    const [modalIsOpen, setModalIsOpen] = useState(false);
-
     function openModal() {
         setModalIsOpen(true);
     }
@@ -121,6 +186,15 @@ export default function ShedCheckOutRoute() {
     }
 
     invariant(user, "Check out information not found");
+
+    // Focuses the note field when it is shown and puts the cursor at the end
+    useEffect(() => {
+        if (!showNoteField || !noteFieldRef.current) return;
+        const noteField = noteFieldRef.current;
+        const end = noteField.value.length;
+        noteField.setSelectionRange(end, end);
+        noteField.focus();
+    }, [showNoteField, noteFieldRef.current]);
 
     const submitting = navigation.state === "submitting";
 
@@ -165,10 +239,19 @@ export default function ShedCheckOutRoute() {
                 <Form
                     method="POST"
                     className="flex flex-col gap-2">
+                    <FormAlert
+                        variant="warning"
+                        condition={action?.formError}
+                    />
                     <input
                         name="cart"
                         type="hidden"
                         value={JSON.stringify(cart)}></input>
+                    <input
+                        name="has-note"
+                        type="hidden"
+                        value={String(showNoteField)}
+                    />
                     {user.account_type === "GUEST" ? (
                         <>
                             <span>
@@ -179,7 +262,19 @@ export default function ShedCheckOutRoute() {
                             <input
                                 className="input input-bordered"
                                 name="display-name"
-                                placeholder="Enter your name or group name"></input>
+                                onChange={(e) => {
+                                    setDisplayName(e.target.value);
+                                    if (action?.fieldErrors?.displayName)
+                                        action.fieldErrors.displayName =
+                                            undefined;
+                                }}
+                                value={displayName}
+                                placeholder="Enter your name or group name"
+                            />
+                            <FormAlert
+                                variant="error"
+                                condition={action?.fieldErrors?.displayName}
+                            />
                         </>
                     ) : (
                         <span className="theme-text-p">
@@ -187,12 +282,12 @@ export default function ShedCheckOutRoute() {
                             <span className="font-bold">{user.name}</span>
                         </span>
                     )}
-                    <button
+                    {/* <button
                         type="button"
                         onClick={openModal}
                         className="btn btn-warning">
                         Open Modal
-                    </button>
+                    </button> */}
                     <Modal
                         preventScroll={true}
                         isOpen={modalIsOpen}
@@ -215,21 +310,53 @@ export default function ShedCheckOutRoute() {
                         <button onClick={closeModal}>close</button>
                         <div>I am a modal</div>
                     </Modal>
-                    {addingANote ? (
+                    {showNoteField ? (
                         <>
-                            <textarea
-                                className="textarea textarea-primary"
-                                placeholder="Bio"></textarea>
+                            <div className="form-control">
+                                <label className="label">
+                                    <span className="label-text">
+                                        Transaction Note
+                                    </span>
+                                    <span className="label-text-alt">
+                                        {note.length}/
+                                        {TRANSACTION_NOTE_MAX_LENGTH}
+                                    </span>
+                                </label>
+                                <textarea
+                                    ref={noteFieldRef}
+                                    className="textarea textarea-primary"
+                                    placeholder="Add a note.."
+                                    name="note"
+                                    // maxLength={TRANSACTION_NOTE_MAX_LENGTH}
+                                    value={note}
+                                    onChange={(e) => {
+                                        if (
+                                            e.target.value.length <=
+                                            TRANSACTION_NOTE_MAX_LENGTH
+                                        )
+                                            setNote(e.target.value);
+
+                                        if (action?.fieldErrors?.note)
+                                            action.fieldErrors.note = undefined;
+                                    }}></textarea>
+                            </div>
+                            <FormAlert
+                                variant="error"
+                                condition={action?.fieldErrors?.note}
+                            />
                             <button
                                 className="btn btn-error"
-                                onClick={(e) => setAddingANote(false)}>
-                                Cancel
+                                onClick={(e) => setShowNoteField(false)}>
+                                Cancel Note
                             </button>
                         </>
                     ) : (
                         <button
                             className="btn btn-secondary"
-                            onClick={(e) => setAddingANote(true)}>
+                            type="button"
+                            onClick={(e) => {
+                                setShowNoteField(true);
+                            }}>
                             Add a note
                         </button>
                     )}

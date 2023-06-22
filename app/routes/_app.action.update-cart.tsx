@@ -3,6 +3,7 @@ import { json, redirect } from "@remix-run/node";
 import type { ActionFunction, LoaderFunction } from "@remix-run/node";
 import { getUserId } from "~/utils/session.server";
 import { db } from "~/utils/db.server";
+import { Prisma } from "@prisma/client";
 
 export const action: ActionFunction = async ({ request }) => {
     const userId = await getUserId(request);
@@ -37,33 +38,46 @@ export const action: ActionFunction = async ({ request }) => {
 
             break;
         case "remove":
-            const dbResults = await db.user.findUnique({
-                where: { id: userId },
-                select: { shed_cart: true },
-            });
-
             if (!item) return failure("Bad request", 400);
 
-            if (!dbResults) return failure("Something went wrong!", 500);
+            const MAX_RETRIES = 3;
+            let retries = 0;
+            while (retries < MAX_RETRIES) {
+                try {
+                    await db.$transaction(async (tx) => {
+                        const { shed_cart } = await tx.user.findUniqueOrThrow({
+                            where: { id: userId },
+                            select: { shed_cart: true },
+                        });
 
-            const index = dbResults.shed_cart.findIndex(
-                (itemInCart) => itemInCart === item
-            );
+                        const cartCopy = [...shed_cart];
 
-            const cartCopy = [...dbResults.shed_cart];
-            cartCopy.splice(index, 1);
+                        const index = shed_cart.findIndex((i) => i === item);
+                        cartCopy.splice(index, 1);
 
-            try {
-                await db.user.update({
-                    where: { id: userId },
-                    data: {
-                        shed_cart: cartCopy,
-                    },
-                });
-            } catch (err) {
-                const error = err as Error;
-                return failure(error.message, 500);
+                        console.log({ shed_cart, cartCopy });
+
+                        await tx.user.update({
+                            where: { id: userId },
+                            data: {
+                                shed_cart: cartCopy,
+                            },
+                        });
+                    });
+                    break;
+                } catch (err) {
+                    if (err instanceof Prisma.PrismaClientKnownRequestError) {
+                        if (err.code === "P2034") {
+                            retries++;
+                            continue;
+                        }
+                    }
+                    const error = err as Error;
+                    // Write conflict or deadlock
+                    return failure(error.message, 500);
+                }
             }
+
             break;
 
         case "clear":

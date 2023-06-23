@@ -34,7 +34,9 @@ model ShedTransaction {
   item_ids      String[]
   shed_location ShedLocation
   action_type   InventoryActionType
+  note          String?
   created_at    DateTime            @default(now())
+  display_name  String              
   user          User                @relation(fields: [user_id], references: [id])
   user_id       String              @db.ObjectId
 }
@@ -53,7 +55,6 @@ model Item {
 
 model User {
   id                String            @id @default(auto()) @map("_id") @db.ObjectId
-  // short_id          String            @unique
   username          String            @unique
   password          String
   name              String
@@ -62,6 +63,7 @@ model User {
   shed_checked_out  String[]
   shed_transactions ShedTransaction[]
   deleted_at        DateTime?
+  version   Int    @default(0)
 }
 
 enum ACCOUNT_TYPE {

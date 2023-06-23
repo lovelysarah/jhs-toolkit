@@ -14,6 +14,7 @@ export const TransactionTableRow = ({
     detailsLink,
     isSelected,
 }: TransactionInfoTextProps) => {
+    console.log(item);
     return (
         <>
             <tr className="hidden md:table-row">
@@ -24,7 +25,7 @@ export const TransactionTableRow = ({
                     })}
                     id={item.id}>
                     <div>
-                        <span className="font-bold">{item.user.name} </span>
+                        <span className="font-bold">{item.display_name} </span>
                         {item.action_type === "CHECK_OUT"
                             ? "took"
                             : "brought back"}{" "}

@@ -9,9 +9,11 @@ export const getTransactionDetails = async (transactionId: string) => {
         select: {
             id: true,
             item_ids: true,
+            display_name: true,
             user: { select: { name: true } },
             shed_location: true,
             action_type: true,
+            note: true,
             created_at: true,
         },
     });
@@ -42,6 +44,7 @@ export const getTransactionsFromRange = async <
             item_ids: true,
             action_type: true,
             created_at: true,
+            display_name: true,
             user: { select: { name: true } },
         },
         ...options,

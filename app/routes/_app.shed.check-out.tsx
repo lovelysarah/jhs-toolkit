@@ -13,7 +13,7 @@ import clsx from "clsx";
 import invariant from "tiny-invariant";
 import Modal from "react-modal";
 
-import { CheckoutItems } from "~/api/inventory";
+import { checkout } from "~/api/inventory";
 import { getInfoFromUserById, getUserInfoById } from "~/api/user";
 import { countItemsInCart, adjustForQuantities } from "~/utils/cart";
 
@@ -81,10 +81,11 @@ export const loader = async ({ request }: LoaderArgs) => {
 
 export const action: ActionFunction = async ({ request }) => {
     const userId = await getUserId(request);
+
     invariant(userId, "Could not check out cart");
 
-    const { account_type } = await getInfoFromUserById(userId, {
-        select: { account_type: true },
+    const user = await getInfoFromUserById(userId, {
+        select: { account_type: true, id: true, name: true },
     });
 
     const form = await request.formData();
@@ -110,7 +111,7 @@ export const action: ActionFunction = async ({ request }) => {
     const fields: CheckoutFields = { note, displayName };
 
     const validateDisplayName = (displayName: string) => {
-        if (account_type === "GUEST" && !displayName)
+        if (user.account_type === "GUEST" && !displayName)
             return "Display name is required";
     };
     const validateNote = (note: string) => {
@@ -135,9 +136,24 @@ export const action: ActionFunction = async ({ request }) => {
 
     console.log("VALID!@");
 
-    await CheckoutItems(userId, JSON.parse(cart));
+    const checkoutResult = await checkout({
+        cart: JSON.parse(cart),
+        displayName,
+        user,
+        note,
+    });
 
-    return json({ success: true });
+    if (checkoutResult.type === "CHECKOUT_FAILURE") {
+        console.log(checkoutResult);
+        return badRequest<CheckoutActionData>({
+            formError: checkoutResult.message,
+            fields,
+            fieldErrors,
+        });
+    }
+    console.log(checkoutResult);
+
+    return json(checkoutResult);
 };
 
 export default function ShedCheckOutRoute() {

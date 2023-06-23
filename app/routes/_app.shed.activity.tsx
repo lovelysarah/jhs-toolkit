@@ -55,9 +55,7 @@ export const loader = async ({ request }: LoaderArgs) => {
     const options: Prisma.ShedTransactionFindManyArgs = {
         take: PER_PAGE,
         skip: (currentPage - 1) * PER_PAGE,
-
         orderBy: { created_at: "desc" },
-        where: undefined,
     };
 
     // Filter by user
@@ -77,6 +75,7 @@ export const loader = async ({ request }: LoaderArgs) => {
         db.shedTransaction.count(countOptions),
     ]);
 
+    console.log(transactions[0]);
     // Set the data
     data.users = users;
     data.transactions = transactions;
@@ -157,7 +156,9 @@ const ShowDetails = ({ data }: { data: TransactionDetails }) => {
                 </div>
                 <div className="flex-1">
                     <h4 className="theme-text-h4">User</h4>
-                    <span>{data.user.name}</span>
+                    <span>
+                        {data.display_name} [{data.user.name}]
+                    </span>
                     <h4 className="theme-text-h4">Date & Time</h4>
                     <span>
                         {data.created_at.toLocaleDateString()} at{" "}
@@ -170,12 +171,12 @@ const ShowDetails = ({ data }: { data: TransactionDetails }) => {
                             : "Check in"}
                     </span>
 
-                    <h4 className="theme-text-h4">Note</h4>
-                    <p>
-                        Lorem ipsum dolor, sit amet consectetur adipisicing
-                        elit. Ratione quidem commodi blanditiis architecto quis
-                        et nisi facilis mollitia consequuntur delectus?
-                    </p>
+                    {data.note && (
+                        <>
+                            <h4 className="theme-text-h4">Note</h4>
+                            <p className="opacity-70">{data.note}</p>
+                        </>
+                    )}
                 </div>
             </div>
             <span className="text-sm opacity-50">ID: {data.id}</span>

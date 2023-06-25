@@ -6,6 +6,8 @@ import {
     LogOut,
     Loader,
     Loader2,
+    Cog,
+    Settings,
 } from "lucide-react";
 
 type NavbarLink = {
@@ -18,7 +20,7 @@ type NavbarLink = {
 
 const navbarLinks: NavbarLink[] = [
     {
-        title: "Shed Inventory",
+        title: "Inventory",
         href: "/shed",
         private: true,
         icon: <Package />,
@@ -29,7 +31,7 @@ const navbarLinks: NavbarLink[] = [
         href: "/admin",
         private: true,
         admin: true,
-        icon: <LayoutDashboard />,
+        icon: <Settings />,
     },
 ];
 
@@ -53,7 +55,7 @@ const CustomLink = ({ link }: { link: NavbarLink }) => {
                 }>
                 {nav.location?.pathname === link.href &&
                 nav.state !== "idle" ? (
-                    <Loader className="animate-spin" />
+                    <Loader2 className="animate-spin" />
                 ) : (
                     link.icon
                 )}

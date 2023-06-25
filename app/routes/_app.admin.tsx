@@ -1,4 +1,5 @@
-import { LoaderFunction, V2_MetaFunction, json } from "@remix-run/node";
+import type { LoaderFunction, V2_MetaFunction } from "@remix-run/node";
+import { json } from "@remix-run/node";
 import {
     Link,
     Outlet,
@@ -71,8 +72,7 @@ export default function AdminRoute() {
             <div
                 id="content-heading"
                 className="flex flex-col justify-between">
-                <h1 className="theme-text-h2">Admin Dashboard</h1>
-                <p className="theme-text-h4">Welcome, {user.name}</p>
+                <h1 className="theme-text-h2">Welcome, {user.name}</h1>
             </div>
             <BreadCrumbs paths={paths} />
             <div className="divider mt-0"></div>

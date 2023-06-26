@@ -14,11 +14,8 @@ export const action: ActionFunction = async ({ request }) => {
     }
 
     try {
-        await db.inventoryLocation.update({
+        await db.inventoryLocation.delete({
             where: { id },
-            data: {
-                deleted_at: new Date(),
-            },
         });
 
         return redirect("/admin/locations");

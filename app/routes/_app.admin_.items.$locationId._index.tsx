@@ -105,7 +105,6 @@ export default function AdminCreateUserRoute() {
     const largeList = ["Name", "Quantity"];
 
     const [selected, setSelected] = useState<string | null>(null);
-    console.log(params);
     return (
         <>
             <h2 className="theme-text-h3 md:top-14 md:sticky z-30 bg-base-100/50 backdrop-blur-sm border-b border-base-300 mb-4">
@@ -122,7 +121,7 @@ export default function AdminCreateUserRoute() {
                 );
 
                 return filteredItems.length > 0 ? (
-                    <>
+                    <div key={tag.id}>
                         <h3 className="theme-text-h4 theme-text-gradient">
                             {tag.name}
                         </h3>
@@ -171,7 +170,7 @@ export default function AdminCreateUserRoute() {
                                 {/* row 2 */}
                             </tbody>
                         </table>{" "}
-                    </>
+                    </div>
                 ) : null;
             })}
         </>

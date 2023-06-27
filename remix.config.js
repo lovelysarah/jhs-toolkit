@@ -8,6 +8,7 @@ module.exports = {
     // publicPath: "/build/",
 
     serverModuleFormat: "cjs",
+    serverDependenciesToBundle: ["nanoid"],
     future: {
         v2_errorBoundary: true,
         v2_meta: true,

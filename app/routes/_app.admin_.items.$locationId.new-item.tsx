@@ -16,18 +16,20 @@ import type {
     ItemActionData,
     ItemFieldErrors,
     ModifyLocationActionData,
-    ModifyLocationFieldErrors,
 } from "~/types/form";
-import { Package, Tag } from "lucide-react";
+import { Package } from "lucide-react";
 import { db } from "~/utils/db.server";
-import { getUserId, requireUser } from "~/utils/session.server";
-import {
-    ITEM_DESCRIPTION_MAX_LENGTH,
-    ITEM_MAX_QUANTITY,
-    ITEM_NOTE_MAX_LENGTH,
-} from "~/constant";
-import { useRef, useState } from "react";
+import { requireUser } from "~/utils/session.server";
+import { ITEM_NOTE_MAX_LENGTH } from "~/constant";
+import { useState } from "react";
 import invariant from "tiny-invariant";
+import {
+    validateDescription,
+    validateName,
+    validateNote,
+    validateQuantity,
+    validateTag,
+} from "~/helper/ItemFormValidators";
 
 export const loader = async ({ request, params }: LoaderArgs) => {
     const inventoryId = params.locationId;
@@ -39,34 +41,6 @@ export const loader = async ({ request, params }: LoaderArgs) => {
     };
 
     return json(data);
-};
-
-const validateName = (name: string) => {
-    if (name.length < 5) return "Name must be at least 5 characters long";
-};
-
-const validateDescription = (description: string) => {
-    console.log(description.length);
-    if (description.length > ITEM_DESCRIPTION_MAX_LENGTH)
-        return `Description must be less than ${ITEM_DESCRIPTION_MAX_LENGTH} characters long`;
-};
-const validateNote = (note: string) => {
-    if (note.length > ITEM_NOTE_MAX_LENGTH)
-        return `Note must be less than ${ITEM_NOTE_MAX_LENGTH} characters long`;
-};
-const validateQuantity = (quantity: number) => {
-    if (quantity < 0) return "Quantity must be a positive integer";
-    if (quantity > ITEM_MAX_QUANTITY)
-        return `Quantity must be no greater than ${ITEM_MAX_QUANTITY}`;
-};
-const validateTag = async (tag: string, inventoryId: string) => {
-    const ids = await db.tag.findMany({
-        where: { inventory: { short_id: inventoryId } },
-        select: { id: true },
-    });
-    const validTags = ids.map((tag) => tag.id);
-
-    if (!validTags.includes(tag)) return "Invalid tag";
 };
 
 export const action: ActionFunction = async ({ request, params }) => {
@@ -126,22 +100,13 @@ export const action: ActionFunction = async ({ request, params }) => {
             data: {
                 short_id: nanoid(10),
                 name,
-                description: description || null,
-                note: note || null,
+                description,
+                note,
                 quantity,
                 tag: { connect: { id: tag } },
                 location: { connect: { short_id: inventoryId } },
             },
         });
-        // await db.tag.create({
-        //     data: {
-        //         name: name,
-        //         description: description,
-        //         created_at: new Date(),
-        //         inventory: { connect: { short_id: inventoryId } },
-        //         created_by: { connect: { id: userId } },
-        //     },
-        // });
 
         return redirect(`/admin/items/${inventoryId}`);
     } catch (err) {
@@ -211,7 +176,6 @@ const NoteInput = ({
     error,
 }: NoteInputProps): JSX.Element => {
     const [note, setNote] = useState("");
-    const noteFieldRef = useRef<HTMLTextAreaElement>(null);
 
     // Focuses the note field when it is shown and puts the cursor at the end
     return (
@@ -224,7 +188,6 @@ const NoteInput = ({
                     </span>
                 </label>
                 <textarea
-                    ref={noteFieldRef}
                     className="textarea textarea-primary"
                     placeholder="Add a note.."
                     name="note"

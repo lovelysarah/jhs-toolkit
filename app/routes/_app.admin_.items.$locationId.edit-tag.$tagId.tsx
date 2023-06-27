@@ -38,7 +38,6 @@ export const loader = async ({ request, params }: LoaderArgs) => {
 };
 
 export const action: ActionFunction = async ({ request, params }) => {
-    console.log(params);
     invariant(params.locationId, "Expected location ID!");
     invariant(params.tagId, "Expected tag ID!");
 
@@ -58,7 +57,6 @@ export const action: ActionFunction = async ({ request, params }) => {
     const name = form.get("name") || tag.name;
     const description = form.get("description");
 
-    console.log({ description });
     if (typeof name !== "string" || typeof description !== "string") {
         return badRequest<ModifyLocationActionData>({
             fieldErrors: null,
@@ -74,12 +72,10 @@ export const action: ActionFunction = async ({ request, params }) => {
     };
 
     const validateDescription = (description: string) => {
-        console.log(description.length);
         if (description.length > 100)
             return "Description must be less than 100 characters long";
     };
 
-    console.log({ fields });
     const fieldErrors: ModifyLocationFieldErrors = {
         name: validateName(name),
         description: validateDescription(description),
@@ -92,9 +88,6 @@ export const action: ActionFunction = async ({ request, params }) => {
             fieldErrors,
         });
     }
-
-    console.log("IS valid");
-    console.log({ description });
 
     await db.tag.update({
         where: { id: params.tagId },
@@ -313,7 +306,6 @@ export function ErrorBoundary() {
     const error = useRouteError();
 
     // when true, this is what used to go to `CatchBoundary`
-    console.log(error);
     if (isRouteErrorResponse(error)) {
         return (
             <div className="p-8 bg-error text-error-content rounded-lg">

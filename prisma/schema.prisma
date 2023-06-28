@@ -29,28 +29,102 @@ enum InventoryActionType {
   CHECK_OUT
 }
 
+model Tag {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  name        String
+  description String
+  items       Item[]
+
+  inventory   InventoryLocation? @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+  inventoryId String?            @db.ObjectId
+
+  created_at DateTime @default(now())
+
+  created_by    User   @relation(fields: [created_by_id], references: [id])
+  created_by_id String @db.ObjectId
+}
+
+enum CHECKOUT_TYPE {
+  PERMANENT
+  TEMPORARY
+}
+
+model CartItem {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  checkout_type CHECKOUT_TYPE
+
+  quantity Int
+  item    Item   @relation(fields: [item_id], references: [id], onDelete: Cascade)
+  item_id String @db.ObjectId
+
+  cart    Cart   @relation(fields: [cart_id], references: [id], onDelete: Cascade)
+  cart_id String @db.ObjectId
+}
+
+model Cart {
+  id      String @id @default(auto()) @map("_id") @db.ObjectId
+  user    User   @relation(fields: [user_id], references: [id])
+  user_id String @db.ObjectId
+
+  items CartItem[]
+
+  inventory InventoryLocation @relation(fields: [inventory_id], references: [id])
+  inventory_id String            @db.ObjectId
+}
+
+model InventoryLocation {
+  id           String            @id @default(auto()) @map("_id") @db.ObjectId
+  short_id     String            @unique
+  description  String?
+  name         String
+  display_name String
+  items        Item[]
+  transactions ShedTransaction[]
+  carts        Cart[]
+  categories   Category[]
+
+  deleted_at DateTime?
+  tags       Tag[]
+}
+
 model ShedTransaction {
-  id            String              @id @default(auto()) @map("_id") @db.ObjectId
+  id            String       @id @default(auto()) @map("_id") @db.ObjectId
   item_ids      String[]
   shed_location ShedLocation
-  action_type   InventoryActionType
-  note          String?
-  created_at    DateTime            @default(now())
-  display_name  String              
-  user          User                @relation(fields: [user_id], references: [id])
-  user_id       String              @db.ObjectId
+
+  action_type  InventoryActionType
+  note         String?
+  created_at   DateTime            @default(now())
+  display_name String
+
+  location    InventoryLocation @relation(fields: [location_id], references: [id])
+  location_id String            @db.ObjectId
+
+  user    User   @relation(fields: [user_id], references: [id])
+  user_id String @db.ObjectId
 }
 
 model Item {
-  id                  String       @id @default(auto()) @map("_id") @db.ObjectId
-  shortId             String       @unique
-  name                String       @unique
-  location            ShedLocation
-  quantity            Int          @default(1)
-  category            Category
-  note                String
-  last_checked_out_by String
-  last_checked_out_at DateTime     @default(now())
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
+  short_id String @unique
+
+  name        String
+  description String?
+  note        String?
+
+  quantity Int @default(1)
+
+  tag    Tag?    @relation(fields: [tag_id], references: [id], onDelete: Cascade)
+  tag_id String? @db.ObjectId
+
+  carts CartItem[]
+
+  last_checked_out_by String?
+  last_checked_out_at DateTime?
+
+  location    InventoryLocation? @relation(fields: [location_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  location_id String?            @db.ObjectId
 }
 
 model User {
@@ -59,11 +133,13 @@ model User {
   password          String
   name              String
   account_type      ACCOUNT_TYPE
+  carts             Cart[]
   shed_cart         String[]
   shed_checked_out  String[]
   shed_transactions ShedTransaction[]
   deleted_at        DateTime?
-  version   Int    @default(0)
+  version           Int               @default(0)
+  Tag               Tag[]
 }
 
 enum ACCOUNT_TYPE {

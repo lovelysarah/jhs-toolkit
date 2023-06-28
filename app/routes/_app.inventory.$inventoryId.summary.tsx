@@ -1,21 +1,29 @@
 import { json } from "@remix-run/node";
-import { Link, Outlet, useFetcher, useLoaderData } from "@remix-run/react";
+import {
+    Link,
+    Outlet,
+    useFetcher,
+    useLoaderData,
+    useParams,
+} from "@remix-run/react";
 import { useRevalidator } from "@remix-run/react";
 
 import clsx from "clsx";
 import { useEffect, useState } from "react";
 import { db } from "~/utils/db.server";
 import { requireUser } from "~/utils/session.server";
-import { Loader } from "lucide-react";
+import { Edit, Loader, Loader2 } from "lucide-react";
 import { useCart } from "~/context/CartContext";
 import { adjustForQuantities, countItemsInCart } from "~/utils/cart";
 
 import type { AdjustedItem } from "~/utils/cart";
 import type { FetcherWithComponents, SubmitOptions } from "@remix-run/react";
 import type { Dispatch, SetStateAction } from "react";
-import type { Tag } from "@prisma/client";
+import type { Cart, Tag } from "@prisma/client";
 import type { SerializeFrom, LoaderArgs } from "@remix-run/node";
 import invariant from "tiny-invariant";
+import { CART_ACTION, CHECKOUT_TYPE } from "~/types/inventory";
+import { Unpacked } from "~/types/utils";
 
 const POLLING_RATE_MS = 10000;
 
@@ -25,18 +33,21 @@ export const loader = async ({ request, params }: LoaderArgs) => {
 
     invariant(inventoryId, "Inventory ID is required");
 
-    const { shed_cart } = await db.user.findFirstOrThrow({
+    const processed = await adjustForQuantities(inventoryId, userId, true);
+
+    const user = await db.user.findFirstOrThrow({
         where: { id: userId },
-        select: { shed_cart: true },
+        select: { account_type: true, name: true },
     });
 
-    const adjustment = await adjustForQuantities(inventoryId, shed_cart, true);
-
     const data = {
+        user,
         itemId: params.itemId,
-        initialCart: adjustment.cart,
-        items: adjustment.stock,
-        diff: adjustment.diff,
+        inventory: processed.items,
+        cart: processed.cart,
+        // initialCart: adjustment.cart,
+        // items: adjustment.stock,
+        // diff: adjustment.diff,
     };
 
     return json(data);
@@ -82,6 +93,10 @@ const InventoryAction = ({
     item,
     fetcher,
 }: InventoryActionProps): JSX.Element | null => {
+    const { inventoryId } = useParams();
+
+    invariant(inventoryId, "Inventory ID was expected");
+
     const submitOptions: SubmitOptions = {
         action: "/action/update-cart",
         method: "POST",
@@ -89,8 +104,14 @@ const InventoryAction = ({
 
     const isIdle = fetcher.state === "idle";
 
-    type SubmitData = { action: "add" | "remove"; item: string };
-    const submit = (data: SubmitData) => fetcher.submit(data, submitOptions);
+    type SubmitData = {
+        action: CART_ACTION;
+        checkoutType: CHECKOUT_TYPE;
+    };
+    const submit = (data: SubmitData) => {
+        const requestData = { ...data, inventoryId, itemId: item.id };
+        fetcher.submit(requestData, submitOptions);
+    };
 
     return isIdle ? (
         <div className="flex gap-2 w-full sm:w-[50%] md:w-[30%]">
@@ -101,22 +122,22 @@ const InventoryAction = ({
                         type="button"
                         onClick={() =>
                             submit({
-                                action: "add",
-                                item: item.name,
+                                action: CART_ACTION.ADD,
+                                checkoutType: CHECKOUT_TYPE.PERMANENT,
                             })
                         }>
-                        Borrow
+                        Add
                     </button>
                     <button
-                        className="btn btn-outline flex-1"
+                        className="btn btn-primary flex-1"
                         type="button"
                         onClick={() =>
                             submit({
-                                action: "add",
-                                item: item.name,
+                                action: CART_ACTION.ADD,
+                                checkoutType: CHECKOUT_TYPE.TEMPORARY,
                             })
                         }>
-                        Take
+                        Borrow
                     </button>
                 </>
             )}
@@ -124,10 +145,11 @@ const InventoryAction = ({
                 <button
                     className="btn btn-error flex-1"
                     type="button"
+                    // Could type this better
                     onClick={() =>
                         submit({
-                            action: "remove",
-                            item: item.name,
+                            action: CART_ACTION.REMOVE,
+                            checkoutType: CHECKOUT_TYPE.PERMANENT,
                         })
                     }>
                     Remove
@@ -143,21 +165,23 @@ const InventoryAction = ({
  */
 
 type ItemCardProps = {
-    item: SerializeFrom<AdjustedItem>;
     selectHandler: Dispatch<SetStateAction<string | undefined>>;
+    canModify: boolean;
     adjusted: boolean;
     expanded: boolean;
     isSelected: boolean;
-    diff: number;
-    cart: string[];
+    cart: Awaited<ReturnType<typeof adjustForQuantities>>["cart"];
+    item: SerializeFrom<
+        Unpacked<Awaited<ReturnType<typeof adjustForQuantities>>["items"]>
+    >;
 };
 const ItemCard = ({
     item,
     selectHandler,
+    canModify,
     adjusted,
     expanded,
     isSelected,
-    diff,
     cart,
 }: ItemCardProps) => {
     const inventoryAction = useFetcher();
@@ -229,9 +253,16 @@ const ItemCard = ({
                         {isIdle ? (
                             <span className="ml-2">{quantityFieldText}</span>
                         ) : (
-                            <Loader className="animate-spin" />
+                            <Loader2 className="animate-spin" />
                         )}
                     </span>
+                    {canModify && (
+                        <Link
+                            className="btn btn-ghost btn-sm"
+                            to={`#`}>
+                            <Edit />
+                        </Link>
+                    )}
                 </Link>
                 {expanded && <Outlet />}
             </div>
@@ -260,6 +291,8 @@ const AwaitingCheckout = ({
     lastUpdated,
 }: AwaitingCheckoutProps) => {
     const clearCart = useFetcher();
+    const { inventoryId } = useParams();
+    invariant(inventoryId, "Inventory ID is undefined");
 
     const itemCounts = countItemsInCart(cart);
     const uniqueCart = [...new Set(cart)].sort();
@@ -278,10 +311,17 @@ const AwaitingCheckout = ({
 
                         <span className="opacity-50">{stockUpdateText}</span>
                     </div>
-                    <div className="flex gap-2">
-                        <span className="badge badge-lg">In Cart</span>
+                    <div className="flex gap-2 items-center">
+                        <span className="badge badge-lg">Permanent</span>
+                        <span className="badge badge-lg badge-outline">
+                            Adjusted
+                        </span>
+                        <div className="divider divider-vertical">or</div>
                         <span className="badge badge-lg badge-primary">
-                            Quantity adjusted
+                            Temporary
+                        </span>
+                        <span className="badge badge-lg badge-primary badge-outline">
+                            Adjusted
                         </span>
                     </div>
                 </div>
@@ -311,7 +351,7 @@ const AwaitingCheckout = ({
                         disabled={clearCart.state !== "idle"}
                         onClick={(e) => {
                             clearCart.submit(
-                                { action: "clear" },
+                                { action: CART_ACTION.CLEAR, inventoryId },
                                 {
                                     action: "/action/update-cart",
                                     method: "POST",
@@ -334,11 +374,11 @@ export default function ShedSummaryRoute() {
     // Get loader data
     const revalidator = useRevalidator();
 
-    const { items, initialCart, itemId, diff } = useLoaderData<typeof loader>();
+    const { inventory, cart, user } = useLoaderData<typeof loader>();
 
-    const cartCTX = useCart();
+    // const cartCTX = useCart();
     // Initialize cart
-    // const [cart, setCart] = useState<typeof initialCart>(initialCart);
+    const [cart, setCart] = useState(cart);
 
     // Used to prevent a POST request if cart and inital cart are out of sync
     // const [syncing, setSyncing] = useState(false);
@@ -347,7 +387,7 @@ export default function ShedSummaryRoute() {
     // Initialized selected item
     const [selected, setSelected] = useState<string | undefined>(itemId);
 
-    // Last category assigned to headers
+    //Last category assigned to headers
     let lastCategory: string | null = null;
 
     // TODO: Fix dependencies
@@ -377,26 +417,31 @@ export default function ShedSummaryRoute() {
         };
     }, []);
 
-    useEffect(() => {
-        cartCTX.updateDiffs(diff);
-    }, [initialCart]);
+    // useEffect(() => {
+    // cartCTX.updateDiffs(diff);
+    // }, [cart]);
+
+    // return <pre>{JSON.stringify(data, null, 2)}</pre>;
 
     return (
         <>
-            {initialCart.length > 0 && (
+            {/* {initialCart.length > 0 && (
                 <AwaitingCheckout
                     diffs={cartCTX.diffs}
                     cart={initialCart}
                     lastUpdated={lastUpdated}
                 />
-            )}
+            )} */}
             {/* <pre>{JSON.stringify(cartCTX.diffs, null, 2)}</pre> */}
             <div className="flex flex-col gap-2 pb-8">
-                {items.map((item) => {
+                {inventory.map((item) => {
                     let addHeader = false;
-                    if (lastCategory !== item.tag_id) {
+                    console.log(item);
+
+                    invariant(item.tag, "Missing item tag");
+                    if (item.tag.name && lastCategory !== item.tag.name) {
                         addHeader = true;
-                        lastCategory = item.tag_id;
+                        lastCategory = item.tag.name;
                     }
 
                     return (
@@ -404,12 +449,13 @@ export default function ShedSummaryRoute() {
                             {addHeader && <TagHeader tag={item.tag} />}
 
                             <ItemCard
-                                cart={initialCart}
+                                cart={cart}
                                 isSelected={selected === item.short_id}
+                                canModify={user.account_type === "ADMIN"}
                                 adjusted={Object.keys(cartCTX.diffs).includes(
                                     item.name
                                 )}
-                                diff={cartCTX.diffs[item.name]}
+                                // diff={cartCTX.diffs[item.name]}
                                 item={item}
                                 selectHandler={setSelected}
                                 expanded={

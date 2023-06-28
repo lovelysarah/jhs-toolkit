@@ -1,5 +1,7 @@
-import type { Item } from "@prisma/client";
-import { getAllItems, getCollectionOfItems } from "~/api/item";
+import type { Cart, CartItem, Item } from "@prisma/client";
+import { getCollectionOfItems } from "~/api/item";
+import { db } from "./db.server";
+import { Unpacked } from "~/types/utils";
 
 export const countItemsInCart = (cart: string[]): { [key: string]: number } =>
     cart.reduce((acc: any, item) => {
@@ -9,84 +11,166 @@ export const countItemsInCart = (cart: string[]): { [key: string]: number } =>
         return acc;
     }, {});
 
-export type AdjustedItem = Item & {
-    quantity: number;
-    checked_out: number;
+export type AdjustedItem = Unpacked<
+    Awaited<ReturnType<typeof getItemsbyInventoryId>>
+> & {
+    checked_out: Pick<NonNullable<CartByInventory>, "items">;
     adjusted: boolean;
 };
 
 type AdjustmentInfo = {
     stock: AdjustedItem[];
-    cart: string[];
-    diff: { [key: string]: number };
+    cart: Cart;
 };
 
+const getItemsbyInventoryId = async (inventoryId: string) => {
+    return await db.item.findMany({
+        where: { location: { short_id: inventoryId } },
+        select: {
+            tag: { select: { name: true } },
+            name: true,
+            quantity: true,
+            last_checked_out_by: true,
+            last_checked_out_at: true,
+            id: true,
+            short_id: true,
+            description: true,
+        },
+        orderBy: [{ tag: { name: "asc" } }, { name: "asc" }],
+    });
+};
+
+const getCartByInventoryId = async (userId: string, inventoryId: string) => {
+    const cart = await db.cart.findFirst({
+        where: {
+            AND: [
+                { user_id: userId },
+                { inventory: { short_id: inventoryId } },
+            ],
+        },
+
+        include: {
+            items: {
+                select: {
+                    quantity: true,
+                    checkout_type: true,
+                    item: { select: { name: true, quantity: true } },
+                },
+            },
+        },
+    });
+
+    return cart;
+};
+
+type CartByInventory = Awaited<ReturnType<typeof getCartByInventoryId>>;
+
 export const adjustForQuantities = async (
-    cart: string[],
+    inventoryId: string,
+    userId: string,
     allItems: boolean = false
-): Promise<AdjustmentInfo> => {
+) => {
     // Should it get all items or just the ones in the cart?
-    const items = allItems
-        ? await getAllItems()
-        : await getCollectionOfItems(cart);
 
-    const newCart = [...cart];
+    const items = await getItemsbyInventoryId(inventoryId);
+    const cart = await getCartByInventoryId(userId, inventoryId);
 
-    // List of items that have been adjusted and by how much
-    const difference = {} as { [key: string]: number };
+    if (!cart) return { items, cart: [] };
 
-    const removeItemFromCart = (item: Item, amount: number) => {
-        for (let i = 0; i < amount; i++) {
-            // Remove element
-            const index = newCart.indexOf(item.name);
-            console.log({ index });
-            if (index > -1) newCart.splice(index, 1);
+    console.log(items);
+    console.log({ cart });
+
+    // : await getCollectionOfItems(cart);
+
+    // const newCart = [...cart];
+    const cartDup = { ...cart };
+
+    // // List of items that have been adjusted and by how much
+    // const difference = {} as { [key: string]: number };
+
+    // const removeItemFromCart = (item: Item, amount: number) => {
+    //     for (let i = 0; i < amount; i++) {
+    //         // Remove element
+    //         const index = newCart.indexOf(item.name);
+    //         console.log({ index });
+    //         if (index > -1) newCart.splice(index, 1);
+    //     }
+    // };
+
+    const combinedQuantity = cart.items.reduce((acc, curr) => {
+        if (Object.keys(acc).includes(curr.item.name)) {
+            acc[curr.item.name] = curr.quantity + acc[curr.item.name];
+        } else {
+            acc[curr.item.name] = curr.quantity;
         }
-    };
 
-    const newItemList = items.map((item): AdjustedItem => {
-        const extraInfo = {
-            quantity: 0,
-            checked_out: 0,
+        return acc;
+    }, {} as { [key: string]: number });
+    // Check overflow in quantities
+    const adjustedItems = items.map((item) => {
+        console.log({ name: item.name });
+        const propertyOverwrite = {
+            quantity: item.quantity,
+            checked_out: {},
             adjusted: false,
         };
 
-        const baseQuantity = item.quantity;
-        // Get amount of item in cart
-        const amountInCart = cart.filter((i) => i === item.name).length;
+        const initialQuantity = item.quantity;
 
-        // Verify if there is enough in stock
-        const hasEnough = baseQuantity - amountInCart > -1;
+        if (
+            cart.items.filter((cartItem) => cartItem.item.name === item.name)
+                .length === 0
+        )
+            return { ...item, ...propertyOverwrite };
+
+        const hasEnough = initialQuantity - combinedQuantity[item.name] > -1;
 
         if (hasEnough) {
-            extraInfo.quantity = baseQuantity - amountInCart;
-            extraInfo.checked_out = amountInCart;
+            propertyOverwrite.quantity =
+                initialQuantity - combinedQuantity[item.name];
 
-            return {
-                ...item,
-                ...extraInfo,
-            };
+            propertyOverwrite.checked_out = cart.items
+                .filter((cartItem) => cartItem.item.name === item.name)
+                .map(({ checkout_type, quantity }) => ({
+                    quantity,
+                    checkout_type,
+                }));
+
+            return { ...item, ...propertyOverwrite };
         }
 
-        // Mark as adjusted
-        extraInfo.adjusted = true;
+        propertyOverwrite.adjusted = true;
 
-        // Calculate difference
-        const diff = baseQuantity - amountInCart;
-
-        difference[item.name] = diff;
+        const diff = initialQuantity - combinedQuantity[item.name];
+        console.log({ diff, combinedQuantity });
 
         const removeSteps = diff * -1;
 
-        removeItemFromCart(item, removeSteps);
+        const index = cart.items.findIndex(
+            (cartItem) => cartItem.item.name === item.name
+        );
 
-        extraInfo.quantity = baseQuantity - (amountInCart + diff);
-        extraInfo.checked_out = amountInCart - removeSteps;
+        if (!index) {
+            throw new Error("Index not found");
+        }
+        console.log(cartDup.items[index]);
 
-        return {
-            ...item,
-            ...extraInfo,
-        };
+        cartDup.items[index].quantity =
+            cartDup.items[index].quantity - removeSteps;
+
+        console.log({ newItem: cartDup.items[index] });
+
+        propertyOverwrite.quantity =
+            initialQuantity - (combinedQuantity[item.name] + diff);
+        propertyOverwrite.checked_out = cart.items
+            .filter((cartItem) => cartItem.item.name === item.name)
+            .map(({ checkout_type, quantity }) => ({
+                quantity,
+                checkout_type,
+            }));
+
+        return { ...item, ...propertyOverwrite };
     });
-    return { stock: newItemList, cart: newCart, diff: difference };
+
+    return { cart: cartDup, items: adjustedItems };
 };

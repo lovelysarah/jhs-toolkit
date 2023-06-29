@@ -3,7 +3,7 @@ import { json, redirect } from "@remix-run/node";
 import type { ActionFunction, LoaderFunction } from "@remix-run/node";
 import { getUserId } from "~/utils/session.server";
 import { db } from "~/utils/db.server";
-import { ACCOUNT_TYPE, Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { CART_ACTION, CHECKOUT_TYPE } from "~/types/inventory";
 
 const getOrCreateCart = async (userId: string, inventoryId: string) => {
@@ -77,11 +77,11 @@ export const action: ActionFunction = async ({ request }) => {
     if (action === CART_ACTION.CLEAR) {
         try {
             await db.cart.delete({ where: { id: cart.id } });
+            return json({ success: true, action }, { status: 200 });
         } catch (err) {
             const error = err as Error;
             return failure(error.message, 500);
         }
-        return json({ success: true }, { status: 204 });
     }
 
     if (!itemId) return failure("Bad request", 400);
@@ -165,7 +165,6 @@ export const action: ActionFunction = async ({ request }) => {
                         },
                     });
 
-                    console.log({ item });
                     // await db.$transaction(async (tx) => {
                     //     const { shed_cart } = await tx.user.findUniqueOrThrow({
                     //         where: { id: userId },

@@ -5,6 +5,7 @@ import { getUserId } from "~/utils/session.server";
 import { db } from "~/utils/db.server";
 import { Prisma } from "@prisma/client";
 import { CART_ACTION, CHECKOUT_TYPE } from "~/types/inventory";
+import { fail } from "assert";
 
 const getOrCreateCart = async (userId: string, inventoryId: string) => {
     // Try to find an existing cart
@@ -155,36 +156,29 @@ export const action: ActionFunction = async ({ request }) => {
 
             break;
         case CART_ACTION.REMOVE:
+            // Might give priority to removing temporary items first or permanent items
+            // With checkout type
             const MAX_RETRIES = 3;
             let retries = 0;
             while (retries < MAX_RETRIES) {
                 try {
-                    const item = await db.cartItem.findFirst({
+                    const item = await db.cartItem.findFirstOrThrow({
                         where: {
                             AND: [{ cart_id: cart.id }, { item_id: itemId }],
                         },
                     });
 
-                    // await db.$transaction(async (tx) => {
-                    //     const { shed_cart } = await tx.user.findUniqueOrThrow({
-                    //         where: { id: userId },
-                    //         select: { shed_cart: true },
-                    //     });
+                    if (item.quantity - 1 < 1) {
+                        await db.cartItem.delete({ where: { id: item.id } });
+                    } else {
+                        await db.cartItem.update({
+                            where: { id: item.id },
+                            data: {
+                                quantity: { decrement: 1 },
+                            },
+                        });
+                    }
 
-                    //     const cartCopy = [...shed_cart];
-
-                    //     const index = shed_cart.findIndex((i) => i === item);
-                    //     cartCopy.splice(index, 1);
-
-                    //     console.log({ shed_cart, cartCopy });
-
-                    //     await tx.user.update({
-                    //         where: { id: userId },
-                    //         data: {
-                    //             shed_cart: cartCopy,
-                    //         },
-                    //     });
-                    // });
                     break;
                 } catch (err) {
                     if (err instanceof Prisma.PrismaClientKnownRequestError) {

@@ -9,21 +9,19 @@ import {
 import { useRevalidator } from "@remix-run/react";
 
 import clsx from "clsx";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { db } from "~/utils/db.server";
 import { requireUser } from "~/utils/session.server";
 import { Edit, Loader, Loader2 } from "lucide-react";
-import { useCart } from "~/context/CartContext";
-import { adjustForQuantities, countItemsInCart } from "~/utils/cart";
+import { calculateInventoryAndCartQuantities } from "~/utils/cart";
 
 import type { AdjustedItem } from "~/utils/cart";
 import type { FetcherWithComponents, SubmitOptions } from "@remix-run/react";
 import type { Dispatch, SetStateAction } from "react";
-import type { Cart, Tag } from "@prisma/client";
 import type { SerializeFrom, LoaderArgs } from "@remix-run/node";
 import invariant from "tiny-invariant";
 import { CART_ACTION, CHECKOUT_TYPE } from "~/types/inventory";
-import { Unpacked } from "~/types/utils";
+import type { Unpacked } from "~/types/utils";
 
 const POLLING_RATE_MS = 10000;
 
@@ -33,7 +31,10 @@ export const loader = async ({ request, params }: LoaderArgs) => {
 
     invariant(inventoryId, "Inventory ID is required");
 
-    const processed = await adjustForQuantities(inventoryId, userId, true);
+    const processed = await calculateInventoryAndCartQuantities(
+        inventoryId,
+        userId
+    );
 
     const user = await db.user.findFirstOrThrow({
         where: { id: userId },
@@ -45,10 +46,10 @@ export const loader = async ({ request, params }: LoaderArgs) => {
         itemId: params.itemId,
         inventory: processed.items,
         cart: processed.cart,
-        // initialCart: adjustment.cart,
-        // items: adjustment.stock,
-        // diff: adjustment.diff,
     };
+    if (data.cart) {
+        console.log({ items: data.cart.items });
+    }
 
     return json(data);
 };
@@ -58,7 +59,7 @@ export const loader = async ({ request, params }: LoaderArgs) => {
  */
 
 type TagHeaderProps = {
-    tag: SerializeFrom<Tag>;
+    tag: SerializeFrom<AdjustedItem["tag"]>;
 };
 const TagHeader = ({ tag }: TagHeaderProps) => {
     return (
@@ -85,7 +86,6 @@ const TagHeader = ({ tag }: TagHeaderProps) => {
 
 type InventoryActionProps = {
     item: SerializeFrom<AdjustedItem>;
-    cart: string[];
     selected: boolean;
     fetcher: FetcherWithComponents<any>;
 };
@@ -118,7 +118,7 @@ const InventoryAction = ({
             {item.quantity !== 0 && (
                 <>
                     <button
-                        className="btn btn-neutral flex-1"
+                        className="btn flex-1"
                         type="button"
                         onClick={() =>
                             submit({
@@ -126,7 +126,7 @@ const InventoryAction = ({
                                 checkoutType: CHECKOUT_TYPE.PERMANENT,
                             })
                         }>
-                        Add
+                        Take out
                     </button>
                     <button
                         className="btn btn-primary flex-1"
@@ -141,19 +141,23 @@ const InventoryAction = ({
                     </button>
                 </>
             )}
-            {item.checked_out > 0 && (
-                <button
-                    className="btn btn-error flex-1"
-                    type="button"
-                    // Could type this better
-                    onClick={() =>
-                        submit({
-                            action: CART_ACTION.REMOVE,
-                            checkoutType: CHECKOUT_TYPE.PERMANENT,
-                        })
-                    }>
-                    Remove
-                </button>
+            {fetcher.state === "idle" && (
+                <>
+                    {item.checked_out.length > 0 && (
+                        <button
+                            className="btn btn-error flex-1"
+                            type="button"
+                            // Could type this better
+                            onClick={() => {
+                                submit({
+                                    action: CART_ACTION.REMOVE,
+                                    checkoutType: CHECKOUT_TYPE.TEMPORARY,
+                                });
+                            }}>
+                            Remove
+                        </button>
+                    )}
+                </>
             )}
         </div>
     ) : null;
@@ -167,22 +171,22 @@ const InventoryAction = ({
 type ItemCardProps = {
     selectHandler: Dispatch<SetStateAction<string | undefined>>;
     canModify: boolean;
-    adjusted: boolean;
     expanded: boolean;
     isSelected: boolean;
-    cart: Awaited<ReturnType<typeof adjustForQuantities>>["cart"];
     item: SerializeFrom<
-        Unpacked<Awaited<ReturnType<typeof adjustForQuantities>>["items"]>
+        Unpacked<
+            Awaited<
+                ReturnType<typeof calculateInventoryAndCartQuantities>
+            >["items"]
+        >
     >;
 };
 const ItemCard = ({
     item,
     selectHandler,
     canModify,
-    adjusted,
     expanded,
     isSelected,
-    cart,
 }: ItemCardProps) => {
     const inventoryAction = useFetcher();
 
@@ -201,18 +205,20 @@ const ItemCard = ({
 
     // Quantity
     const displayQuantityOrMessage =
-        item.checked_out > 0 ? item.quantity : "Out of stock";
+        item.checked_out.length > 0 ? item.quantity : "Out of stock";
 
     const quantityFieldText =
         item.quantity > 0 ? item.quantity : displayQuantityOrMessage;
 
     // Name
     const displayItemNameorInCartMessage = isIdle
-        ? `${item.checked_out} ${item.name} in cart`
+        ? `${item.combinedCartQuantity} ${item.name} in cart`
         : `${item.name}`;
 
     const nameFieldText =
-        item.checked_out > 0 ? displayItemNameorInCartMessage : item.name;
+        item.checked_out.length > 0
+            ? displayItemNameorInCartMessage
+            : item.name;
 
     /**
      * Styles
@@ -221,21 +227,22 @@ const ItemCard = ({
         "text-left no-animation btn flex justify-between items-center";
 
     const s_inStockAndNotInCart =
-        isIdle && !expanded && item.quantity > 0 && item.checked_out === 0;
+        isIdle &&
+        !expanded &&
+        item.quantity > 0 &&
+        item.checked_out.length === 0;
 
     const s_outOfStock =
-        !expanded && item.quantity === 0 && item.checked_out === 0;
+        !expanded && item.quantity === 0 && item.checked_out.length === 0;
 
-    const s_inCart = isIdle && !expanded && item.checked_out !== 0;
+    const s_inCart = isIdle && !expanded && item.checked_out.length !== 0;
 
     return (
         <div className={`flex flex-col sm:flex-row sm:items-start gap-2`}>
             <div className="basis-full sm:basis-[50%] md:basis-[70%]">
-                <Link
+                <div
                     key={item.name}
-                    to={expanded ? "/shed/summary" : item.short_id}
                     onClick={handleExpand}
-                    preventScrollReset={true}
                     className={clsx(s_base, {
                         "btn-warning": !isIdle,
                         "btn-ghost": s_inStockAndNotInCart,
@@ -245,9 +252,6 @@ const ItemCard = ({
                     })}>
                     <span className="basis-[80%] md:flex-1 font-bold">
                         {nameFieldText}
-                        {adjusted && (
-                            <span className="badge ml-2">Adjusted</span>
-                        )}
                     </span>
                     <span className="basis-[20%] md:flex-1 flex md:text-left">
                         {isIdle ? (
@@ -263,13 +267,14 @@ const ItemCard = ({
                             <Edit />
                         </Link>
                     )}
-                </Link>
+                </div>
                 {expanded && <Outlet />}
+                {/* DEBUG */}
+                {/* <pre>{JSON.stringify({ item }, null, 2)}</pre> */}
             </div>
             <InventoryAction
                 fetcher={inventoryAction}
                 selected={isSelected}
-                cart={cart}
                 item={item}
             />
         </div>
@@ -281,21 +286,22 @@ const ItemCard = ({
  * TODO: Adjustment diffs
  */
 type AwaitingCheckoutProps = {
-    diffs: { [key: string]: number };
-    cart: string[];
+    cart: NonNullable<
+        Awaited<ReturnType<typeof calculateInventoryAndCartQuantities>>["cart"]
+    >;
     lastUpdated: Date | undefined;
 };
-const AwaitingCheckout = ({
-    diffs,
-    cart,
-    lastUpdated,
-}: AwaitingCheckoutProps) => {
+const AwaitingCheckout = ({ cart, lastUpdated }: AwaitingCheckoutProps) => {
     const clearCart = useFetcher();
     const { inventoryId } = useParams();
+
     invariant(inventoryId, "Inventory ID is undefined");
 
-    const itemCounts = countItemsInCart(cart);
-    const uniqueCart = [...new Set(cart)].sort();
+    const sortedItems = useMemo(() => {
+        return cart.items
+            .sort((a, b) => (a.item.name < b.item.name ? 1 : -1))
+            .sort((a, b) => (a.checkout_type > b.checkout_type ? 1 : -1));
+    }, [cart.items]);
 
     // Text
     const stockUpdateText = lastUpdated
@@ -327,24 +333,27 @@ const AwaitingCheckout = ({
                 </div>
                 <div className="flex justify-between items-start px-2 py-4 rounded-lg">
                     <div className="flex gap-2  flex-wrap">
-                        {uniqueCart.map((item) => {
-                            const adjusted = Object.keys(diffs).includes(item);
-                            const count = itemCounts[item];
-                            // Styles
-                            const s_itemBadge = clsx(
-                                "badge badge-lg shadow-lg",
-                                {
-                                    "badge-primary": adjusted,
-                                }
-                            );
-                            return (
-                                <span
-                                    className={s_itemBadge}
-                                    key={item}>
-                                    {count} {item}
-                                </span>
-                            );
-                        })}
+                        {sortedItems.map(
+                            ({ item, quantity, checkout_type, adjusted }) => {
+                                // const count = itemCounts[item.name];
+                                // Styles
+                                const s_itemBadge = clsx(
+                                    "badge badge-lg shadow-lg",
+                                    {
+                                        "badge-primary":
+                                            checkout_type === "TEMPORARY",
+                                        "badge-outline": adjusted,
+                                    }
+                                );
+                                return (
+                                    <span
+                                        className={s_itemBadge}
+                                        key={`${item.id}-${checkout_type}`}>
+                                        {quantity} {item.name}
+                                    </span>
+                                );
+                            }
+                        )}
                     </div>
                     <button
                         className="border btn btn-error px-4 py-2"
@@ -378,14 +387,14 @@ export default function ShedSummaryRoute() {
 
     // const cartCTX = useCart();
     // Initialize cart
-    const [cart, setCart] = useState(cart);
+    // const [cart, setCart] = useState(cart);
 
     // Used to prevent a POST request if cart and inital cart are out of sync
     // const [syncing, setSyncing] = useState(false);
     const [lastUpdated, setLastUpdated] = useState<Date>();
 
     // Initialized selected item
-    const [selected, setSelected] = useState<string | undefined>(itemId);
+    const [selected, setSelected] = useState<string | undefined>("e");
 
     //Last category assigned to headers
     let lastCategory: string | null = null;
@@ -425,18 +434,16 @@ export default function ShedSummaryRoute() {
 
     return (
         <>
-            {/* {initialCart.length > 0 && (
+            {cart && cart.items.length > 0 && (
                 <AwaitingCheckout
-                    diffs={cartCTX.diffs}
-                    cart={initialCart}
+                    cart={cart}
                     lastUpdated={lastUpdated}
                 />
-            )} */}
-            {/* <pre>{JSON.stringify(cartCTX.diffs, null, 2)}</pre> */}
+            )}
+            {/* <pre>{JSON.stringify({ user, cart, inventory }, null, 2)}</pre> */}
             <div className="flex flex-col gap-2 pb-8">
                 {inventory.map((item) => {
                     let addHeader = false;
-                    console.log(item);
 
                     invariant(item.tag, "Missing item tag");
                     if (item.tag.name && lastCategory !== item.tag.name) {
@@ -449,13 +456,8 @@ export default function ShedSummaryRoute() {
                             {addHeader && <TagHeader tag={item.tag} />}
 
                             <ItemCard
-                                cart={cart}
                                 isSelected={selected === item.short_id}
                                 canModify={user.account_type === "ADMIN"}
-                                adjusted={Object.keys(cartCTX.diffs).includes(
-                                    item.name
-                                )}
-                                // diff={cartCTX.diffs[item.name]}
                                 item={item}
                                 selectHandler={setSelected}
                                 expanded={

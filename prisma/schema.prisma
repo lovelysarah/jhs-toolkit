@@ -36,8 +36,8 @@ model Tag {
   description String
   items       Item[]
 
-  inventory   InventoryLocation? @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
-  inventoryId String?            @db.ObjectId
+  inventory   InventoryLocation @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+  inventoryId String            @db.ObjectId
 
   created_at DateTime @default(now())
 
@@ -115,16 +115,16 @@ model Item {
 
   quantity Int @default(1)
 
-  tag    Tag?    @relation(fields: [tag_id], references: [id], onDelete: Cascade)
-  tag_id String? @db.ObjectId
+  tag    Tag    @relation(fields: [tag_id], references: [id], onDelete: Cascade)
+  tag_id String @db.ObjectId
 
   carts CartItem[]
 
   last_checked_out_by String?
   last_checked_out_at DateTime?
 
-  location    InventoryLocation? @relation(fields: [location_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  location_id String?            @db.ObjectId
+  location    InventoryLocation @relation(fields: [location_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  location_id String            @db.ObjectId
 }
 
 model User {

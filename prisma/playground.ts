@@ -1,16 +1,12 @@
 import { db } from "~/utils/db.server";
 
 const test = async () => {
-    const items = await db.item.findMany({
-        where: {
-            shortId: {
-                in: ["-eUAo0w_rt", "WVLYOAiVxm", "bMsZYDP36x", "YYDWINpSW6"],
-            },
+    await db.user.update({
+        where: { id: "647ce74c90a277d4d047421f" },
+        data: {
+            shed_checked_out: [],
         },
-        select: { name: true, shortId: true },
     });
-
-    console.log(items);
 };
 
 (async () => {

@@ -60,7 +60,11 @@ export default {
     },
     daisyui: {
         themes: [
+            "cyberpunk",
             "black",
+            "light",
+            "dark",
+            "winter",
             {
                 mytheme: {
                     primary: "#0ea5e9",

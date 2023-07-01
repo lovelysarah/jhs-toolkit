@@ -1,14 +1,5 @@
 import { NavLink, useNavigation } from "@remix-run/react";
-import {
-    LayoutDashboard,
-    Package,
-    LogIn,
-    LogOut,
-    Loader,
-    Loader2,
-    Cog,
-    Settings,
-} from "lucide-react";
+import { Package, LogIn, LogOut, Loader2, Settings } from "lucide-react";
 
 type NavbarLink = {
     title: string;
@@ -21,7 +12,7 @@ type NavbarLink = {
 const navbarLinks: NavbarLink[] = [
     {
         title: "Inventory",
-        href: "/shed",
+        href: "/inventory",
         private: true,
         icon: <Package />,
     },

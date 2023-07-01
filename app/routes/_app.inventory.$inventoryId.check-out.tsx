@@ -7,7 +7,7 @@ import {
     useNavigation,
     useRevalidator,
 } from "@remix-run/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import clsx from "clsx";
 import invariant from "tiny-invariant";
@@ -28,6 +28,7 @@ import { FormAlert } from "~/components/FormAlert";
 
 import type { FieldErrors, FormActionData } from "~/types/form";
 import type { ActionFunction, LoaderArgs } from "@remix-run/node";
+import { Check, Clock, Clock1, DoorOpen, Info } from "lucide-react";
 
 const TRANSACTION_NOTE_MAX_LENGTH = 200;
 
@@ -57,26 +58,29 @@ type CheckoutActionData = FormActionData<CheckoutFieldErrors, CheckoutFields>;
 
 Modal.setAppElement("#root");
 
-export const loader = async ({ request }: LoaderArgs) => {
+export const loader = async ({ request, params }: LoaderArgs) => {
     const userId = await getUserId(request);
+    const inventoryId = params.inventoryId;
 
     invariant(userId, "Was expecting userId");
+    invariant(inventoryId, "Was expecting inventoryId");
 
-    const { shed_cart } = await db.user.findUniqueOrThrow({
-        where: { id: userId },
-        select: { shed_cart: true },
-    });
+    const { cart } = await calculateInventoryAndCartQuantities(
+        inventoryId,
+        userId
+    );
 
-    const adjustment = await calculateInventoryAndCartQuantities(shed_cart);
-    const itemCounts = countItemsInCart(adjustment.cart);
+    // const itemCounts = countItemsInCart(adjustment.cart);
+    invariant(cart, "Cart not found");
 
     const data = {
+        cart: cart.items,
         user: await getUserInfoById(userId),
-        shouldRevalidate: shed_cart !== adjustment.cart,
-        cart: adjustment.cart,
-        items: adjustment.stock,
-        cartCount: adjustment.cart.length,
-        counts: itemCounts,
+        // shouldRevalidate: shed_cart !== adjustment.cart,
+        // cart: adjustment.cart,
+        // items: adjustment.stock,
+        // cartCount: adjustment.cart.length,
+        // counts: itemCounts,
     };
 
     return json(data);
@@ -160,9 +164,25 @@ export const action: ActionFunction = async ({ request }) => {
 };
 
 export default function ShedCheckOutRoute() {
-    const { items, counts, user, cartCount, cart, shouldRevalidate } =
-        useLoaderData<typeof loader>();
+    const { cart, user } = useLoaderData<typeof loader>();
+    console.log(cart);
 
+    const sortedByNote = useMemo(() => {
+        return cart.sort((a, b) => (a.item.note ? -1 : 1));
+    }, [cart]);
+
+    const { permanentItems, temporaryItems } = useMemo(() => {
+        return {
+            permanentItems: cart.filter(
+                (item) => item.checkout_type === "PERMANENT"
+            ),
+            temporaryItems: cart.filter(
+                (item) => item.checkout_type === "TEMPORARY"
+            ),
+        };
+    }, [cart]);
+
+    console.log({ permanentItems, temporaryItems });
     const action = useActionData<CheckoutActionData>();
 
     const revalidator = useRevalidator();
@@ -220,8 +240,8 @@ export default function ShedCheckOutRoute() {
     return (
         <section className="flex flex-col-reverse md:flex-row gap-12 items-start">
             <div className="w-full md:basis-4/6">
-                <h2 className={clsx("theme-text-h3 mb-8")}>Items</h2>
-                {cartCount < 1 ? (
+                <h2 className={clsx("theme-text-h3 mb-8")}>Cart</h2>
+                {cart.length < 1 ? (
                     <h3 className="theme-text-h4 rounded-lg w-full">
                         No items in cart,{" "}
                         <Link
@@ -232,24 +252,49 @@ export default function ShedCheckOutRoute() {
                         .
                     </h3>
                 ) : (
-                    <ul className="flex flex-col gap-4">
-                        {items.map((item) => {
-                            const count = counts[item.name];
-                            return (
-                                <li
-                                    key={item.id}
-                                    className="bg-info text-info-content shadow-md flex flex-col py-2 px-4 rounded-lg">
-                                    <div className="flex justify-between items-center">
-                                        <span className="theme-text-h4 py-2">
-                                            {item.name}
-                                        </span>
-                                        <span>Quantity: {count}</span>
-                                    </div>
-                                    <p className="theme-text-p">{item.note}</p>
-                                </li>
-                            );
-                        })}
-                    </ul>
+                    <>
+                        <ul className="flex flex-col gap-4">
+                            {sortedByNote.map((cartItem) => {
+                                const classes = clsx(
+                                    "shadow-md flex flex-col py-2 px-4 rounded-lg",
+                                    {
+                                        "":
+                                            cartItem.checkout_type ===
+                                            "PERMANENT",
+                                    }
+                                );
+                                return (
+                                    <li
+                                        key={`${cartItem.item.id}-${cartItem.checkout_type}`}
+                                        className={classes}>
+                                        <div className="flex justify-between items-center">
+                                            <span className="theme-text-h4 py-2 flex gap-2 items-center">
+                                                {cartItem.item.name}
+                                            </span>
+                                            <span>
+                                                Quantity: {cartItem.quantity}
+                                            </span>
+                                        </div>
+                                        {cartItem.checkout_type ===
+                                            "TEMPORARY" && (
+                                            <p className="text-primary theme-text-p flex gap-2 items-center">
+                                                <Clock />
+                                                Temporary
+                                            </p>
+                                        )}
+                                        {cartItem.item.note && (
+                                            <p className="theme-text-p flex gap-2 items-center">
+                                                <Info className="shrink-0" />
+                                                <span className="opacity-60">
+                                                    {cartItem.item.note}
+                                                </span>
+                                            </p>
+                                        )}
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                    </>
                 )}
             </div>
 
@@ -380,10 +425,10 @@ export default function ShedCheckOutRoute() {
                         </button>
                     )}
                     <button
-                        disabled={!shouldRevalidate}
+                        // disabled={!shouldRevalidate}
                         className={clsx("btn btn-primary", {
                             "btn-warning": submitting,
-                            "btn-disabled": cartCount < 1,
+                            "btn-disabled": cart.length < 1,
                         })}>
                         {submitting ? "Submitting..." : "Submit"}
                     </button>

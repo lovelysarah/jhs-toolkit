@@ -3,13 +3,16 @@ import {
     NavLink,
     Outlet,
     useLoaderData,
+    useNavigate,
     useNavigation,
+    useParams,
 } from "@remix-run/react";
 import { getAllUsers } from "~/api/user";
 import { Loader2, MapPin } from "lucide-react";
 import { db } from "~/utils/db.server";
 
 import type { LoaderArgs } from "@remix-run/node";
+import { useState } from "react";
 
 const findAllLocationsWithCounts = async () => {
     return await db.inventoryLocation.findMany({
@@ -45,14 +48,56 @@ export const loader = async ({ request, params }: LoaderArgs) => {
 export default function AdminItemRoute() {
     const { locations } = useLoaderData<typeof loader>();
 
+    const [navigatingTo, setNavigatingTo] = useState("");
     const nav = useNavigation();
+    const navigate = useNavigate();
+    const { inventoryId } = useParams();
 
     return (
         <section className="">
-            <div className="w-full sticky top-4 z-50">
-                <nav className="tabs tabs-boxed my-4 bg-base-200/50 backdrop-blur-sm">
+            <div className="form-control w-full max-w-xs md:hidden mt-8">
+                <label className="label">
+                    <span className="label-text flex gap-2">
+                        {nav.location?.pathname === navigatingTo &&
+                        nav.state !== "idle" ? (
+                            <Loader2 className="animate-spin" />
+                        ) : (
+                            <MapPin />
+                        )}
+                        Pick the location
+                    </span>
+                    <span className="label-text-alt">
+                        {locations.length} available
+                    </span>
+                </label>
+                <select
+                    className="select select-bordered"
+                    defaultValue={inventoryId || "DEFAULT"}
+                    onChange={(e) => {
+                        setNavigatingTo(`/inventory/${e.target.value}`);
+                        navigate(`/inventory/${e.target.value}`);
+                    }}>
+                    <option
+                        disabled
+                        value={"DEFAULT"}
+                        selected>
+                        Select one
+                    </option>
                     {locations.map((location) => {
-                        const link = `/inventory/${location.short_id}/summary`;
+                        return (
+                            <option
+                                key={location.id}
+                                value={location.short_id}>
+                                {location.name}
+                            </option>
+                        );
+                    })}
+                </select>
+            </div>
+            <div className="w-full z-50 hidden md:block">
+                <nav className="tabs tabs-boxed flex gap-1 my-4 bg-base-200/50 backdrop-blur-sm">
+                    {locations.map((location) => {
+                        const link = `/inventory/${location.short_id}`;
                         return (
                             <NavLink
                                 to={link}

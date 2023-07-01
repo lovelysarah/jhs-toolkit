@@ -45,11 +45,18 @@ const getCartByInventoryId = async (userId: string, inventoryId: string) => {
                 select: {
                     quantity: true,
                     checkout_type: true,
-                    item: { select: { name: true, quantity: true, id: true } },
+                    item: {
+                        select: {
+                            name: true,
+                            quantity: true,
+                            id: true,
+                            description: true,
+                            note: true,
+                        },
+                    },
                 },
             },
         },
-        orderBy: { items: { _count: "desc" } },
     });
 
     return cart;
@@ -142,7 +149,7 @@ const adjustItemAndCart = (
 
         const priority = modifiedCart.items[priorityIndex];
 
-        if (priority.quantity - 1 < 0) {
+        if (!priority || priority.quantity - 1 < 0) {
             const secondaryIndex = findIndexByType(
                 CHECKOUT_TYPE.PERMANENT,
                 modifiedCart.items

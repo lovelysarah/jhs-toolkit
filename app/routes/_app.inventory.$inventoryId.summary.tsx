@@ -63,9 +63,8 @@ type TagHeaderProps = {
 };
 const TagHeader = ({ tag }: TagHeaderProps) => {
     return (
-        <>
-            <div className="divider"></div>
-            <h3 className="theme-text-h3 mt-4">{tag.name.replace("_", " ")}</h3>
+        <div className="border-t-2 border-base-200 mt-4">
+            <h3 className="theme-text-h4 mt-4">{tag.name.replace("_", " ")}</h3>
             <p className="theme-text-p opacity-60">{tag.description}</p>
             <div className="flex">
                 <div className="py-2 px-4 flex items-center opacity-70 basis-full sm:basis-[50%] md:basis-[70%]">
@@ -75,7 +74,7 @@ const TagHeader = ({ tag }: TagHeaderProps) => {
                     </span>
                 </div>
             </div>
-        </>
+        </div>
     );
 };
 
@@ -87,11 +86,13 @@ const TagHeader = ({ tag }: TagHeaderProps) => {
 type InventoryActionProps = {
     item: SerializeFrom<AdjustedItem>;
     selected: boolean;
+    checkoutType: CHECKOUT_TYPE;
     fetcher: FetcherWithComponents<any>;
 };
 const InventoryAction = ({
     item,
     fetcher,
+    checkoutType,
 }: InventoryActionProps): JSX.Element | null => {
     const { inventoryId } = useParams();
 
@@ -101,6 +102,8 @@ const InventoryAction = ({
         action: "/action/update-cart",
         method: "POST",
     };
+
+    const borrowing = checkoutType === CHECKOUT_TYPE.TEMPORARY;
 
     const isIdle = fetcher.state === "idle";
 
@@ -116,30 +119,21 @@ const InventoryAction = ({
     return isIdle ? (
         <div className="flex gap-2 w-full sm:w-[50%] md:w-[30%]">
             {item.quantity !== 0 && (
-                <>
-                    <button
-                        className="btn flex-1"
-                        type="button"
-                        onClick={() =>
-                            submit({
-                                action: CART_ACTION.ADD,
-                                checkoutType: CHECKOUT_TYPE.PERMANENT,
-                            })
-                        }>
-                        Take out
-                    </button>
-                    <button
-                        className="btn btn-primary flex-1"
-                        type="button"
-                        onClick={() =>
-                            submit({
-                                action: CART_ACTION.ADD,
-                                checkoutType: CHECKOUT_TYPE.TEMPORARY,
-                            })
-                        }>
-                        Borrow
-                    </button>
-                </>
+                <button
+                    className={clsx("btn flex-1", {
+                        "btn-primary": borrowing,
+                    })}
+                    type="button"
+                    onClick={() =>
+                        submit({
+                            action: CART_ACTION.ADD,
+                            checkoutType: borrowing
+                                ? CHECKOUT_TYPE.TEMPORARY
+                                : CHECKOUT_TYPE.PERMANENT,
+                        })
+                    }>
+                    {borrowing ? "Borrow" : "Take"}
+                </button>
             )}
             {fetcher.state === "idle" && (
                 <>
@@ -173,6 +167,7 @@ type ItemCardProps = {
     canModify: boolean;
     expanded: boolean;
     isSelected: boolean;
+    checkoutType: CHECKOUT_TYPE;
     item: SerializeFrom<
         Unpacked<
             Awaited<
@@ -186,6 +181,7 @@ const ItemCard = ({
     selectHandler,
     canModify,
     expanded,
+    checkoutType,
     isSelected,
 }: ItemCardProps) => {
     const inventoryAction = useFetcher();
@@ -273,6 +269,7 @@ const ItemCard = ({
                 {/* <pre>{JSON.stringify({ item }, null, 2)}</pre> */}
             </div>
             <InventoryAction
+                checkoutType={checkoutType}
                 fetcher={inventoryAction}
                 selected={isSelected}
                 item={item}
@@ -393,6 +390,8 @@ export default function ShedSummaryRoute() {
     // const [syncing, setSyncing] = useState(false);
     const [lastUpdated, setLastUpdated] = useState<Date>();
 
+    const [borrowing, setBorrowing] = useState(true);
+
     // Initialized selected item
     const [selected, setSelected] = useState<string | undefined>("e");
 
@@ -440,6 +439,21 @@ export default function ShedSummaryRoute() {
                     lastUpdated={lastUpdated}
                 />
             )}
+            <div className="form-control sticky top-32 md:top-8 px-4 bg-base-200 rounded-lg border-base-300 border z-50">
+                <label className="label cursor-pointer">
+                    <span className="label-text">Borrowing</span>
+                    <input
+                        onChange={(e) => {
+                            setBorrowing(e.target.checked);
+                        }}
+                        type="checkbox"
+                        className={clsx("toggle", {
+                            "toggle-primary": borrowing,
+                        })}
+                        checked={borrowing}
+                    />
+                </label>
+            </div>
             {/* <pre>{JSON.stringify({ user, cart, inventory }, null, 2)}</pre> */}
             <div className="flex flex-col gap-2 pb-8">
                 {inventory.map((item) => {
@@ -459,6 +473,11 @@ export default function ShedSummaryRoute() {
                                 isSelected={selected === item.short_id}
                                 canModify={user.account_type === "ADMIN"}
                                 item={item}
+                                checkoutType={
+                                    borrowing
+                                        ? CHECKOUT_TYPE.TEMPORARY
+                                        : CHECKOUT_TYPE.PERMANENT
+                                }
                                 selectHandler={setSelected}
                                 expanded={
                                     selected === item.short_id

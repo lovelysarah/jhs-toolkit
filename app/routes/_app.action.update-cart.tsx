@@ -5,7 +5,6 @@ import { getUserId } from "~/utils/session.server";
 import { db } from "~/utils/db.server";
 import { Prisma } from "@prisma/client";
 import { CART_ACTION, CHECKOUT_TYPE } from "~/types/inventory";
-import { fail } from "assert";
 
 const getOrCreateCart = async (userId: string, inventoryId: string) => {
     // Try to find an existing cart
@@ -102,6 +101,7 @@ export const action: ActionFunction = async ({ request }) => {
                     where: {
                         AND: [
                             { checkout_type: checkoutType },
+                            { cart_id: cart.id },
                             { item_id: itemId },
                         ],
                     },
@@ -127,6 +127,7 @@ export const action: ActionFunction = async ({ request }) => {
 
                         return json({ success: true }, { status: 201 });
                     } catch (err) {
+                        console.log(err);
                         const error = err as Error;
                         return failure(error.message, 500);
                     }

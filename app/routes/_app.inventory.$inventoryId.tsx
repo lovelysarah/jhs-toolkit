@@ -18,6 +18,7 @@ import { requireUser } from "~/utils/session.server";
 import { db } from "~/utils/db.server";
 
 import type { LoaderFunction } from "@remix-run/node";
+import invariant from "tiny-invariant";
 
 type LoaderData = {
     cartCount: number;
@@ -26,14 +27,17 @@ type LoaderData = {
 
 export const loader: LoaderFunction = async ({ request, params }) => {
     const inventoryId = params.inventoryId;
+    invariant(inventoryId, "No inventory ID provided");
     // Redirect to login if user is not logged in
     const user = await requireUser(request)!;
 
     // Get cart from session
     // const cart = (await getCartSession(request)).getCart();
-    const userInfo = await db.user.findUnique({
-        where: { id: user },
-        select: { shed_cart: true },
+    const cart = await db.cart.findFirst({
+        where: {
+            AND: [{ user_id: user }, { inventory: { short_id: inventoryId } }],
+        },
+        select: { _count: { select: { items: true } } },
     });
 
     const location = await db.inventoryLocation.findUniqueOrThrow({
@@ -42,7 +46,7 @@ export const loader: LoaderFunction = async ({ request, params }) => {
     });
 
     const data: LoaderData = {
-        cartCount: userInfo?.shed_cart.length || 0,
+        cartCount: cart ? cart._count.items : 0,
         locationName: location.name,
     };
 

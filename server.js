@@ -27,7 +27,7 @@ app.use(
 // more aggressive with this caching.
 app.use(express.static("public", { maxAge: "1h" }));
 
-app.use(morgan("tiny"));
+app.use(morgan("dev"));
 
 app.all(
     "*",

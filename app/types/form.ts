@@ -1,4 +1,4 @@
-import { TypedResponse } from "@remix-run/node";
+import type { TypedResponse } from "@remix-run/node";
 
 export type UserFormData = {
     name: string;
@@ -6,6 +6,19 @@ export type UserFormData = {
     password: string;
     confirmPassword: string;
     accountType: string;
+};
+
+export type LocationFormData = {
+    name: string;
+    description: string;
+};
+
+export type ItemFormData = {
+    name: string;
+    description: string;
+    note: string;
+    quantity: number;
+    tag: string;
 };
 
 /**
@@ -19,7 +32,7 @@ export type FormActionData<TFieldErrors, TFields> = {
 };
 
 export type FieldErrors<TFields> = {
-    [K in keyof TFields]?: TFields[K] | undefined;
+    [K in keyof TFields]?: string | undefined;
 };
 
 // Create User
@@ -37,6 +50,20 @@ export type ModifyUserActionData = FormActionData<
     ModifyUserFieldErrors,
     ModifyUserFields
 >;
+
+// Modify Location
+
+export type ModifyLocationFields = LocationFormData;
+export type ModifyLocationFieldErrors = FieldErrors<ModifyLocationFields>;
+export type ModifyLocationActionData = FormActionData<
+    ModifyLocationFieldErrors,
+    ModifyLocationFields
+>;
+
+// Item
+export type ItemFields = ItemFormData;
+export type ItemFieldErrors = FieldErrors<ItemFields>;
+export type ItemActionData = FormActionData<ItemFieldErrors, ItemFields>;
 
 /**
  * Type validation

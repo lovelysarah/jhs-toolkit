@@ -1,4 +1,9 @@
-import { LoaderArgs, LoaderFunction, json } from "@remix-run/node";
+import {
+    LoaderArgs,
+    LoaderFunction,
+    SerializeFrom,
+    json,
+} from "@remix-run/node";
 import { Link, Outlet, useLoaderData, useNavigation } from "@remix-run/react";
 import { AllUsers, getAllUsers } from "~/api/user";
 import { Unpacked } from "~/types/utils";
@@ -21,7 +26,7 @@ const findAllLocationsWithCounts = async () => {
         where: { deleted_at: { isSet: false } },
         include: {
             _count: {
-                select: { items: true, transactions: true },
+                select: { tags: true, items: true, transactions: true },
             },
         },
     });
@@ -46,7 +51,7 @@ export const loader = async ({ request }: LoaderArgs) => {
 };
 
 type TableRowProps = {
-    location: Unpacked<LocationsWithCount>;
+    location: SerializeFrom<Unpacked<LocationsWithCount>>;
     onSelect: () => void;
     isSelected: boolean;
 };
@@ -73,18 +78,8 @@ const TableRow = ({ location, onSelect, isSelected }: TableRowProps) => {
             <td className="hidden sm:table-cell">
                 {location._count.transactions}
             </td>
+            <td className="hidden sm:table-cell">{location._count.tags}</td>
             <td>
-                <Link
-                    onClick={onSelect}
-                    preventScrollReset={true}
-                    to={`/admin/transactions/${location.id}`}
-                    className="btn btn-ghost">
-                    {showLoadingIcon ? (
-                        <Loader className="animate-spin" />
-                    ) : (
-                        <LucideClipboardList />
-                    )}
-                </Link>
                 <Link
                     onClick={onSelect}
                     preventScrollReset={true}
@@ -116,7 +111,7 @@ export default function AdminManageShedRoute() {
     const { locations } = useLoaderData<typeof loader>();
 
     const smallList = ["Name"];
-    const largeList = ["Name", "items", "transactions"];
+    const largeList = ["Name", "items", "transactions", "Tags"];
 
     const [selected, setSelected] = useState<string | null>(null);
     console.log({ locations });

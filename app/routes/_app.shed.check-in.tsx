@@ -16,7 +16,10 @@ import Modal from "react-modal";
 import { checkout } from "~/api/inventory";
 import { getInfoFromUserById, getUserInfoById } from "~/api/user";
 import type { AdjustedItem } from "~/utils/cart";
-import { countItemsInCart, adjustForQuantities } from "~/utils/cart";
+import {
+    countItemsInCart,
+    calculateInventoryAndCartQuantities,
+} from "~/utils/cart";
 
 import { db } from "~/utils/db.server";
 import { badRequest } from "~/utils/request.server";
@@ -74,7 +77,7 @@ export const loader = async ({ request }: LoaderArgs) => {
         select: { shed_checked_out: true, shed_cart: true },
     });
 
-    const adjustment = await adjustForQuantities(shed_cart);
+    const adjustment = await calculateInventoryAndCartQuantities(shed_cart);
     const itemCounts = countItemsInCart(shed_checked_out);
     const itemDetails = await getCollectionOfItems(shed_checked_out);
 

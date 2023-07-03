@@ -1,6 +1,6 @@
 import { LoaderFunction, json } from "@remix-run/node";
 import { Link, Outlet, useLoaderData, useNavigation } from "@remix-run/react";
-import { AllUsers, getAllUsers } from "~/api/user";
+import { AllUsers, getAllUsers } from "~/data/user";
 import { Unpacked } from "~/types/utils";
 import { BadgeCheck, Edit, Loader, User, Users } from "lucide-react";
 import { useState } from "react";

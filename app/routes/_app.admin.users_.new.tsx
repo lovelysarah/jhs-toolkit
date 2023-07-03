@@ -2,7 +2,7 @@ import { ActionFunction, redirect } from "@remix-run/node";
 import { Form, Link, useActionData } from "@remix-run/react";
 import { CreateUserActionData } from "~/types/form";
 import { FormAlert } from "~/components/FormAlert";
-import { createUser } from "~/api/user";
+import { createUser } from "~/data/user";
 import { validateUserCreationForm } from "~/helper/UserFormValidator";
 import { useEffect, useState } from "react";
 import { badRequest } from "~/utils/request.server";

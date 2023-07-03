@@ -13,7 +13,7 @@ import clsx from "clsx";
 import invariant from "tiny-invariant";
 import Modal from "react-modal";
 
-import { getInfoFromUserById, getUserInfoById } from "~/api/user";
+import { getInfoFromUserById, getUserInfoById } from "~/data/user";
 import {
     countItemsInCart,
     calculateInventoryAndCartQuantities,

@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import { db } from "./db.server";
 import { KEYS } from "~/constant/cookie.server";
-import { saveUserCart } from "~/api/cart";
+import { saveUserCart } from "~/data/cart";
 import { createCookieSessionStorage, redirect } from "@remix-run/node";
 import { User } from "@prisma/client";
 import { resolveNaptr } from "dns";

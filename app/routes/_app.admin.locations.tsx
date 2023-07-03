@@ -5,7 +5,7 @@ import {
     json,
 } from "@remix-run/node";
 import { Link, Outlet, useLoaderData, useNavigation } from "@remix-run/react";
-import { AllUsers, getAllUsers } from "~/api/user";
+import { AllUsers, getAllUsers } from "~/data/user";
 import { Unpacked } from "~/types/utils";
 import {
     BadgeCheck,

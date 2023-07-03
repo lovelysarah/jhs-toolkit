@@ -7,7 +7,7 @@ import {
     useNavigation,
     useParams,
 } from "@remix-run/react";
-import { getAllUsers } from "~/api/user";
+import { getAllUsers } from "~/data/user";
 import { Loader2, MapPin } from "lucide-react";
 import { db } from "~/utils/db.server";
 

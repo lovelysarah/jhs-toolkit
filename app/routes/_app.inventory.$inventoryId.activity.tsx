@@ -9,19 +9,19 @@ import { TransactionTableRow } from "~/components/TransactionInfoText";
 
 import { db } from "~/utils/db.server";
 
-import type { UsersWithAShedTransaction } from "~/api/user";
+import type { UsersWithAShedTransaction } from "~/data/user";
 import type { LoaderArgs } from "@remix-run/node";
 import type { Prisma } from "@prisma/client";
 import {
     getTransactionDetails,
     getTransactionsFromRange,
-} from "~/api/shedTransaction";
+} from "~/data/shedTransaction";
 import type {
     MultipleTransactions,
     TransactionDetails,
-} from "~/api/shedTransaction";
+} from "~/data/shedTransaction";
 
-import { getUsersThatHaveShedTransactions } from "~/api/user";
+import { getUsersThatHaveShedTransactions } from "~/data/user";
 
 // How many transactions to show per page
 const PER_PAGE = 7;

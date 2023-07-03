@@ -1,6 +1,6 @@
 import { LoaderFunction, json } from "@remix-run/node";
 import { Link, Outlet, useLoaderData } from "@remix-run/react";
-import { SingleItemResult, getSingleItem } from "~/api/item";
+import { SingleItemResult, getSingleItem } from "~/data/item";
 import invariant from "tiny-invariant";
 
 type LoaderData = {

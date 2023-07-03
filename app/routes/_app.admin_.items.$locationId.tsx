@@ -7,7 +7,7 @@ import {
     useLoaderData,
     useParams,
 } from "@remix-run/react";
-import { getAllUsers } from "~/api/user";
+import { getAllUsers } from "~/data/user";
 import { Edit, Menu, PackagePlus, Tag } from "lucide-react";
 import { db } from "~/utils/db.server";
 import invariant from "tiny-invariant";

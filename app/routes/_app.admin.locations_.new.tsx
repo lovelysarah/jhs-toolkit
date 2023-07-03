@@ -6,7 +6,7 @@ import {
     ModifyLocationFieldErrors,
 } from "~/types/form";
 import { FormAlert } from "~/components/FormAlert";
-import { createUser } from "~/api/user";
+import { createUser } from "~/data/user";
 import { validateUserCreationForm } from "~/helper/UserFormValidator";
 import { useEffect, useState } from "react";
 import { badRequest } from "~/utils/request.server";

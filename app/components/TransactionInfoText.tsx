@@ -1,6 +1,6 @@
 import { Link } from "@remix-run/react";
 import clsx from "clsx";
-import type { MultipleTransactions } from "~/api/shedTransaction";
+import type { MultipleTransactions } from "~/data/shedTransaction";
 import type { Unpacked } from "~/types/utils";
 
 export type TransactionInfoTextProps = {

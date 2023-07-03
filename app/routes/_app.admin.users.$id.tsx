@@ -14,7 +14,7 @@ import clsx from "clsx";
 import { AlertTriangle, Trash } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import invariant from "tiny-invariant";
-import { UserInfo, getUserInfoById, modifyUser } from "~/api/user";
+import { UserInfo, getUserInfoById, modifyUser } from "~/data/user";
 import { FormAlert } from "~/components/FormAlert";
 import { validateUserUpdateForm } from "~/helper/UserFormValidator";
 import {

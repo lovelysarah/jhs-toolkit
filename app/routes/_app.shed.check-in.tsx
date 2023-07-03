@@ -13,8 +13,8 @@ import clsx from "clsx";
 import invariant from "tiny-invariant";
 import Modal from "react-modal";
 
-import { checkout } from "~/api/inventory";
-import { getInfoFromUserById, getUserInfoById } from "~/api/user";
+import { checkout } from "~/data/inventory";
+import { getInfoFromUserById, getUserInfoById } from "~/data/user";
 import type { AdjustedItem } from "~/utils/cart";
 import {
     countItemsInCart,
@@ -29,7 +29,7 @@ import { FormAlert } from "~/components/FormAlert";
 
 import type { FieldErrors, FormActionData } from "~/types/form";
 import type { ActionFunction, LoaderArgs } from "@remix-run/node";
-import { getCollectionOfItems } from "~/api/item";
+import { getCollectionOfItems } from "~/data/item";
 import { Backpack } from "lucide-react";
 import type { ShedTransaction } from "@prisma/client";
 

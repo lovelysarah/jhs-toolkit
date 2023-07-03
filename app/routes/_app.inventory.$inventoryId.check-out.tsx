@@ -13,11 +13,11 @@ import clsx from "clsx";
 import invariant from "tiny-invariant";
 import Modal from "react-modal";
 
-import { checkout } from "~/api/inventory";
 import { getInfoFromUserById, getUserInfoById } from "~/api/user";
 import {
     countItemsInCart,
     calculateInventoryAndCartQuantities,
+    isProcessedStockWithCart,
 } from "~/utils/cart";
 
 import { db } from "~/utils/db.server";
@@ -65,22 +65,16 @@ export const loader = async ({ request, params }: LoaderArgs) => {
     invariant(userId, "Was expecting userId");
     invariant(inventoryId, "Was expecting inventoryId");
 
-    const { cart } = await calculateInventoryAndCartQuantities(
+    const inventoryData = await calculateInventoryAndCartQuantities(
         inventoryId,
         userId
     );
 
-    // const itemCounts = countItemsInCart(adjustment.cart);
-    invariant(cart, "Cart not found");
-
     const data = {
-        cart: cart.items,
         user: await getUserInfoById(userId),
-        // shouldRevalidate: shed_cart !== adjustment.cart,
-        // cart: adjustment.cart,
-        // items: adjustment.stock,
-        // cartCount: adjustment.cart.length,
-        // counts: itemCounts,
+        cart: isProcessedStockWithCart(inventoryData)
+            ? inventoryData.cart
+            : null,
     };
 
     return json(data);
@@ -101,8 +95,6 @@ export const action: ActionFunction = async ({ request }) => {
     const displayName = form.get("display-name") || "";
     const hasNote = form.get("has-note") === "true";
 
-    console.log({ cart, note, displayName, hasNote });
-
     if (
         typeof cart !== "string" ||
         typeof note !== "string" ||
@@ -114,6 +106,8 @@ export const action: ActionFunction = async ({ request }) => {
             fields: null,
         });
     }
+
+    const parsedCart = JSON.parse(cart);
 
     const fields: CheckoutFields = { note, displayName };
 
@@ -143,46 +137,43 @@ export const action: ActionFunction = async ({ request }) => {
 
     console.log("VALID!@");
 
-    const checkoutResult = await checkout({
-        cart: JSON.parse(cart),
-        displayName,
-        user,
-        note,
-    });
+    // const checkoutResult = await checkout({
+    //     cart: JSON.parse(cart),
+    //     displayName,
+    //     user,
+    //     note,
+    // });
 
-    if (checkoutResult.type === "CHECKOUT_FAILURE") {
-        console.log(checkoutResult);
-        return badRequest<CheckoutActionData>({
-            formError: checkoutResult.message,
-            fields,
-            fieldErrors,
-        });
-    }
-    console.log(checkoutResult);
+    // if (checkoutResult.type === "CHECKOUT_FAILURE") {
+    //     console.log(checkoutResult);
+    //     return badRequest<CheckoutActionData>({
+    //         formError: checkoutResult.message,
+    //         fields,
+    //         fieldErrors,
+    //     });
+    // }
+    // console.log(checkoutResult);
 
-    return json(checkoutResult);
+    return null;
 };
 
 export default function ShedCheckOutRoute() {
     const { cart, user } = useLoaderData<typeof loader>();
-    console.log(cart);
 
-    const sortedByNote = useMemo(() => {
-        return cart.sort((a, b) => (a.item.note ? -1 : 1));
-    }, [cart]);
+    const sortedItems = useMemo(() => {
+        if (!cart) return null;
 
-    const { permanentItems, temporaryItems } = useMemo(() => {
         return {
-            permanentItems: cart.filter(
+            noteFirst: cart.items.sort((a, b) => (a.item.note ? -1 : 1)),
+            permanentItems: cart.items.filter(
                 (item) => item.checkout_type === "PERMANENT"
             ),
-            temporaryItems: cart.filter(
+            temporaryItems: cart.items.filter(
                 (item) => item.checkout_type === "TEMPORARY"
             ),
         };
     }, [cart]);
 
-    console.log({ permanentItems, temporaryItems });
     const action = useActionData<CheckoutActionData>();
 
     const revalidator = useRevalidator();
@@ -241,7 +232,7 @@ export default function ShedCheckOutRoute() {
         <section className="flex flex-col-reverse md:flex-row gap-12 items-start">
             <div className="w-full md:basis-4/6">
                 <h2 className={clsx("theme-text-h3 mb-8")}>Cart</h2>
-                {cart.length < 1 ? (
+                {!sortedItems ? (
                     <h3 className="theme-text-h4 rounded-lg w-full">
                         No items in cart,{" "}
                         <Link
@@ -254,7 +245,7 @@ export default function ShedCheckOutRoute() {
                 ) : (
                     <>
                         <ul className="flex flex-col gap-4">
-                            {sortedByNote.map((cartItem) => {
+                            {sortedItems.noteFirst.map((cartItem) => {
                                 const classes = clsx(
                                     "shadow-md flex flex-col py-2 px-4 rounded-lg",
                                     {
@@ -428,7 +419,7 @@ export default function ShedCheckOutRoute() {
                         // disabled={!shouldRevalidate}
                         className={clsx("btn btn-primary", {
                             "btn-warning": submitting,
-                            "btn-disabled": cart.length < 1,
+                            "btn-disabled": !cart || cart.items.length === 0,
                         })}>
                         {submitting ? "Submitting..." : "Submit"}
                     </button>

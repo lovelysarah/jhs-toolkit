@@ -13,9 +13,12 @@ import { useEffect, useMemo, useState } from "react";
 import { db } from "~/utils/db.server";
 import { requireUser } from "~/utils/session.server";
 import { Edit, Loader, Loader2 } from "lucide-react";
-import { calculateInventoryAndCartQuantities } from "~/utils/cart";
+import {
+    calculateInventoryAndCartQuantities,
+    isProcessedStockWithCart,
+} from "~/utils/cart";
 
-import type { AdjustedItem } from "~/utils/cart";
+import type { AdjustedItem, ProcessedCart } from "~/utils/cart";
 import type { FetcherWithComponents, SubmitOptions } from "@remix-run/react";
 import type { Dispatch, SetStateAction } from "react";
 import type { SerializeFrom, LoaderArgs } from "@remix-run/node";
@@ -45,11 +48,8 @@ export const loader = async ({ request, params }: LoaderArgs) => {
         user,
         itemId: params.itemId,
         inventory: processed.items,
-        cart: processed.cart,
+        cart: isProcessedStockWithCart(processed) ? processed.cart : null,
     };
-    if (data.cart) {
-        console.log({ items: data.cart.items });
-    }
 
     return json(data);
 };
@@ -283,9 +283,7 @@ const ItemCard = ({
  * TODO: Adjustment diffs
  */
 type AwaitingCheckoutProps = {
-    cart: NonNullable<
-        Awaited<ReturnType<typeof calculateInventoryAndCartQuantities>>["cart"]
-    >;
+    cart: ProcessedCart;
     lastUpdated: Date | undefined;
 };
 const AwaitingCheckout = ({ cart, lastUpdated }: AwaitingCheckoutProps) => {

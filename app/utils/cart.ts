@@ -73,20 +73,25 @@ type CartWithAdjustedItems = Omit<CartByInventory, "items"> & {
     items: FetchedCartItem[];
 };
 
+type CombinedQuantities = { [key: string]: number };
+
+export type ProcessedCart = CartWithAdjustedItems & CombinedQuantities;
+
 export type AdjustedItem = Unpacked<ItemByInventory> & {
     combinedCartQuantity: number;
     checked_out: FetchedCartItem[];
     adjusted: boolean;
 };
 
-type ProcessedData = {
+interface ProcessedStock {
     items: AdjustedItem[];
-    cart:
-        | (CartWithAdjustedItems & {
-              combinedQuantities: { [key: string]: number };
-          })
-        | null;
-};
+}
+
+interface ProcessedStockWithCart extends ProcessedStock {
+    cart: ProcessedCart;
+}
+
+type ProcessedData = ProcessedStock | ProcessedStockWithCart;
 
 const getCombinedQuantities = (cart: CartWithAdjustedItems) => {
     if (!cart) return {};
@@ -186,6 +191,10 @@ const adjustItemAndCart = (
     return { adjustedItem: item, modifiedCart };
 };
 
+export const isProcessedStockWithCart = (
+    value: ProcessedData
+): value is ProcessedStockWithCart => "cart" in value;
+
 export const calculateInventoryAndCartQuantities = async (
     inventoryId: string,
     userId: string
@@ -236,13 +245,17 @@ export const calculateInventoryAndCartQuantities = async (
         }
     );
 
-    return {
-        cart: cart
-            ? {
-                  ...cartDup,
-                  combinedQuantities: getCombinedQuantities(cartDup),
-              }
-            : null,
-        items: adjustedItems,
+    const processedStock = { items: adjustedItems };
+
+    if (!cart) return processedStock;
+
+    const processedStockWithCart = {
+        ...processedStock,
+        cart: {
+            ...cartDup,
+            combinedQuantities: getCombinedQuantities(cartDup),
+        },
     };
+
+    return processedStockWithCart;
 };

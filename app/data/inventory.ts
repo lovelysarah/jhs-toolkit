@@ -1,100 +1,165 @@
-import type { Item, ShedTransaction, User } from "@prisma/client";
-import { countItemsInCart } from "~/utils/cart";
 import { db } from "~/utils/db.server";
-import type { InfoFromUser } from "./user";
-import type { CheckoutResult } from "~/types/inventory";
+import { nanoid } from "nanoid";
 import { CHECKOUT_ERROR_MESSAGES } from "~/types/inventory";
 
+import type {
+    Prisma,
+    InventoryLocation,
+    PrismaClient,
+    Transaction,
+    CHECKOUT_TYPE,
+} from "@prisma/client";
+import type { InfoFromUser } from "./user";
+import type { ProcessedCart } from "~/utils/cart";
+import type {
+    CreateTxFailure,
+    CreateTxResult,
+    CreateTxSuccess,
+} from "~/types/inventory";
+
+type TransactionInput = {
+    tx: Omit<
+        PrismaClient<
+            Prisma.PrismaClientOptions,
+            never,
+            Prisma.RejectOnNotFound | Prisma.RejectPerOperation | undefined
+        >,
+        "$connect" | "$disconnect" | "$on" | "$transaction" | "$use"
+    >;
+    linkId: string;
+    inventory: Pick<InventoryLocation, "id" | "name">;
+    type: CHECKOUT_TYPE;
+    note: string;
+    displayName: string;
+    items: ProcessedCart["items"];
+    itemCount: number;
+    user: InfoFromUser;
+};
+
+const countQuantity = (items: ProcessedCart["items"]) =>
+    items.reduce((acc, { quantity }) => acc + quantity, 0);
+
+const createTransaction = async ({
+    tx,
+    linkId,
+    inventory,
+    type,
+    note,
+    displayName,
+    items,
+    itemCount,
+    user,
+}: TransactionInput) => {
+    // Decrement items
+    for (const { quantity, item } of items) {
+        const previous = await tx.item.findFirstOrThrow({
+            where: { id: item.id },
+            select: { quantity: true, id: true },
+        });
+
+        if (previous.quantity - quantity < 0) throw new Error("NO_STOCK");
+
+        await tx.item.update({
+            where: { id: previous.id },
+            data: { quantity: previous.quantity - quantity },
+        });
+    }
+
+    // Create transaction record
+    return await tx.transaction.create({
+        data: {
+            link_id: linkId,
+            checkout_type: type,
+            action_type: "CHECK_OUT",
+            status: type === "PERMANENT" ? "COMPLETED" : "PENDING",
+            note: note,
+            PERMA_user_display_name: displayName ? displayName : user.name,
+            PERMA_inventory_name: inventory.name,
+            PERMA_user_account: user.name,
+
+            item_count: itemCount,
+
+            items: items.map(({ quantity, item }) => ({
+                name: item.name,
+                quantity,
+            })) as Prisma.JsonArray,
+
+            inventory: {
+                connect: { id: inventory.id },
+            },
+            user: {
+                connect: { id: user.id },
+            },
+            created_at: new Date(),
+        },
+        select: { id: true, created_at: true },
+    });
+};
+
 type CheckoutQueryInfo = {
-    cart: string[];
+    cart: {
+        id: string;
+        itemCount: number;
+        permanentItems: ProcessedCart["items"];
+        temporaryItems: ProcessedCart["items"];
+    };
+    inventory: Pick<InventoryLocation, "id" | "name">;
     displayName: string;
     note: string;
-    user: Pick<InfoFromUser, "id" | "account_type" | "name">;
+    user: InfoFromUser;
 };
 
-type CheckoutResultData = {
-    user: Partial<User>;
-    transaction: Partial<ShedTransaction>;
-    items: Partial<Item>[];
-};
-export const checkout = async (
-    data: CheckoutQueryInfo
-): Promise<CheckoutResult<CheckoutResultData>> => {
-    // save items to user's checked out
-
-    const count = countItemsInCart(data.cart);
-    const items = Object.entries(count).map(([name, quantity]) => ({
-        name,
-        quantity,
-    }));
-
-    // Why try catch won't work here..?
-    const result: CheckoutResult<CheckoutResultData> = (await db
+export const checkout = async ({
+    inventory,
+    displayName,
+    note,
+    user,
+    cart,
+}: CheckoutQueryInfo): Promise<CreateTxResult> => {
+    const result = await db
         .$transaction(async (tx) => {
-            let items_result = [] as any[];
-
-            let error = false;
-
-            for (let { name, quantity } of items) {
-                if (error) return;
-                console.log({ name, quantity });
-
-                const previous = await tx.item.findFirstOrThrow({
-                    where: { name },
-                    select: { quantity: true },
+            const transactions = [] as Pick<Transaction, "id" | "created_at">[];
+            const linkId = nanoid(10);
+            const sharedData = {
+                tx,
+                linkId,
+                inventory: inventory,
+                displayName: displayName,
+                note: note,
+                user: user,
+            };
+            if (cart.permanentItems.length > 0) {
+                const permanentTX = await createTransaction({
+                    ...sharedData,
+                    type: "PERMANENT",
+                    itemCount: countQuantity(cart.permanentItems),
+                    items: cart.permanentItems,
+                    user: user,
                 });
-
-                if (previous.quantity - quantity < 0)
-                    throw new Error("NO_STOCK");
-
-                const modified = await tx.item.update({
-                    where: { name },
-                    data: { quantity: previous.quantity - quantity },
-                });
-
-                items_result.push(modified);
+                transactions.push(permanentTX);
             }
-
-            const transaction = await tx.shedTransaction.create({
-                data: {
-                    user: { connect: { id: data.user.id } },
-                    shed_location: "FLANDERS",
-                    action_type: "CHECK_OUT",
-                    display_name:
-                        data.user.account_type === "GUEST"
-                            ? data.displayName
-                            : data.user.name,
-                    note: data.note ? data.note : null,
-                    created_at: new Date(),
-                    item_ids: { set: data.cart },
-                },
-                select: {
-                    id: true,
-                    user: { select: { name: true } },
-                    created_at: true,
-                },
+            if (cart.temporaryItems.length > 0) {
+                const temporatyTX = await createTransaction({
+                    ...sharedData,
+                    type: "TEMPORARY",
+                    itemCount: countQuantity(cart.temporaryItems),
+                    items: cart.temporaryItems,
+                    user: user,
+                });
+                transactions.push(temporatyTX);
+            }
+            // Update user's cart
+            await tx.cart.delete({
+                where: { id: cart.id },
             });
-            // Update user's checked out items
-            const user = await tx.user.update({
-                where: { id: data.user.id },
-                data: {
-                    shed_cart: [],
-                    shed_checked_out: { push: data.cart },
-                },
-                select: { name: true },
-            });
-
-            const result = {
-                transaction,
-                user,
-                items: items_result,
-            } as CheckoutResultData;
 
             return {
                 type: "CHECKOUT_SUCCESS",
-                data: result,
-                messsage: "Success!",
-            };
+                data: { transactions },
+                message: `Successfully created ${
+                    transactions.length
+                } transaction${transactions.length > 1 ? "s" : ""}`,
+            } satisfies CreateTxSuccess;
         })
         .catch((e) => {
             const error = e as Error;
@@ -102,12 +167,11 @@ export const checkout = async (
             if (error.message === "NO_STOCK")
                 message = CHECKOUT_ERROR_MESSAGES.NO_STOCK;
 
-            return { type: "CHECKOUT_FAILURE", message };
-        })) as CheckoutResult<CheckoutResultData>;
+            return {
+                type: "CHECKOUT_FAILURE",
+                message,
+            } satisfies CreateTxFailure;
+        });
 
     return result;
-
-    // decrement items from inventory
-    // create transaction
-    // return transaction id
 };

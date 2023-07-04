@@ -105,18 +105,28 @@ model ShedTransaction {
   user_id String @db.ObjectId
 }
 
-model Transaction {
-  id       String   @id @default(auto()) @map("_id") @db.ObjectId
-  item_ids String[]
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+}
 
+model Transaction {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  link_id String
+   
+  items Json[]
+  item_count Int
+  
+  PERMA_user_account      String
+  PERMA_user_display_name String
+  PERMA_inventory_name    String
+
+  status        TransactionStatus
   action_type   InventoryActionType
   checkout_type CHECKOUT_TYPE
   note          String?
 
   created_at DateTime @default(now())
-
-  user_name String
-  location_name String
 
   inventory    InventoryLocation @relation(fields: [inventory_id], references: [id])
   inventory_id String            @db.ObjectId

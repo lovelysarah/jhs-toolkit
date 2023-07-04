@@ -1,4 +1,5 @@
 import type { TypedResponse } from "@remix-run/node";
+import type { CreateTxResult } from "./inventory";
 
 export type UserFormData = {
     name: string;
@@ -19,6 +20,11 @@ export type ItemFormData = {
     note: string;
     quantity: number;
     tag: string;
+};
+
+export type TxFormData = {
+    displayName?: string;
+    note?: string;
 };
 
 /**
@@ -64,6 +70,12 @@ export type ModifyLocationActionData = FormActionData<
 export type ItemFields = ItemFormData;
 export type ItemFieldErrors = FieldErrors<ItemFields>;
 export type ItemActionData = FormActionData<ItemFieldErrors, ItemFields>;
+
+// Transaction (Tx)
+export type TxFields = TxFormData;
+export type TxFieldErrors = FieldErrors<TxFields>;
+export type TxActionData = FormActionData<TxFieldErrors, TxFields> &
+    CreateTxResult;
 
 /**
  * Type validation

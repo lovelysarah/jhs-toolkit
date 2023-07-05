@@ -15,7 +15,7 @@ export const getInfoFromUserById = async (
 export type InfoFromUser = Awaited<ReturnType<typeof getInfoFromUserById>>;
 
 export const getUserInfoById = async (id: string) => {
-    return await db.user.findUnique({
+    return await db.user.findUniqueOrThrow({
         where: { id },
         select: {
             username: true,

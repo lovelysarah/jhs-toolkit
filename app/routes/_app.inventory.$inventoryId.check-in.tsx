@@ -15,11 +15,15 @@ import Modal from "react-modal";
 
 import { checkout } from "~/data/inventory";
 import { getInfoFromUserById, getUserInfoById } from "~/data/user";
-import type { AdjustedItem } from "~/utils/cart";
+import type { AdjustedItem, ProcessedCart } from "~/utils/cart";
 import {
     countItemsInCart,
     calculateInventoryAndCartQuantities,
+    isProcessedStockWithCart,
 } from "~/utils/cart";
+
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
 
 import { db } from "~/utils/db.server";
 import { badRequest } from "~/utils/request.server";
@@ -30,8 +34,9 @@ import { FormAlert } from "~/components/FormAlert";
 import type { FieldErrors, FormActionData } from "~/types/form";
 import type { ActionFunction, LoaderArgs } from "@remix-run/node";
 import { getCollectionOfItems } from "~/data/item";
-import { Backpack } from "lucide-react";
-import type { ShedTransaction } from "@prisma/client";
+import { Backpack, Clock, MapPin } from "lucide-react";
+import type { ShedTransaction, Transaction } from "@prisma/client";
+import { isTxItem } from "~/types/tx";
 
 const TRANSACTION_NOTE_MAX_LENGTH = 200;
 
@@ -40,24 +45,41 @@ type CheckinFields = {
     note?: string;
 };
 
+dayjs.extend(relativeTime);
+
 type CheckinFieldErrors = FieldErrors<CheckinFields>;
 type CheckinActionData = FormActionData<CheckinFieldErrors, CheckinFields>;
 
 Modal.setAppElement("#root");
 
 type LoaderData = {
+    pendingTransactions: PendingTransactions;
     itemHistory: ShedTransaction[];
     user: Awaited<ReturnType<typeof getUserInfoById>>;
-    userItems: Awaited<ReturnType<typeof getCollectionOfItems>>;
     items: AdjustedItem[];
-    cart: string[];
+    cart: ProcessedCart | null;
     cartCount: number;
     counts: Record<string, number>;
 };
+const getPendingTxs = async (userId: string) =>
+    await db.transaction.findMany({
+        orderBy: { created_at: "asc" },
+        where: {
+            AND: [
+                { user_id: userId },
+                { status: "PENDING" },
+                { checkout_type: "TEMPORARY" },
+            ],
+        },
+        include: { inventory: true },
+    });
 
-export const loader = async ({ request }: LoaderArgs) => {
+type PendingTransactions = Awaited<ReturnType<typeof getPendingTxs>>;
+
+export const loader = async ({ request, params }: LoaderArgs) => {
     const data = {} as LoaderData;
     const userId = await getUserId(request);
+    const inventoryId = params.inventoryId;
 
     // Get the query parameters
     const url = new URL(request.url);
@@ -71,22 +93,25 @@ export const loader = async ({ request }: LoaderArgs) => {
     }
 
     invariant(userId, "Was expecting userId");
+    invariant(inventoryId, "Was expecting inventoryId");
 
-    const { shed_checked_out, shed_cart } = await db.user.findUniqueOrThrow({
-        where: { id: userId },
-        select: { shed_checked_out: true, shed_cart: true },
-    });
+    // const { shed_checked_out, shed_cart } = await db.user.findUniqueOrThrow({
+    // where: { id: userId },
+    // select: { shed_checked_out: true, shed_cart: true },
+    // });
 
-    const adjustment = await calculateInventoryAndCartQuantities(shed_cart);
-    const itemCounts = countItemsInCart(shed_checked_out);
-    const itemDetails = await getCollectionOfItems(shed_checked_out);
+    const inventoryData = await calculateInventoryAndCartQuantities(
+        inventoryId,
+        userId
+    );
 
-    data.cart = adjustment.cart;
-    data.cartCount = adjustment.cart.length;
+    data.pendingTransactions = await getPendingTxs(userId);
+    data.cart = isProcessedStockWithCart(inventoryData)
+        ? inventoryData.cart
+        : null;
+    data.cartCount = 21;
     data.user = await getUserInfoById(userId);
-    data.items = adjustment.stock;
-    data.counts = itemCounts;
-    data.userItems = itemDetails;
+    data.items = inventoryData.items;
 
     return json(data);
 };
@@ -169,13 +194,15 @@ export const action: ActionFunction = async ({ request }) => {
 };
 
 export default function ShedCheckOutRoute() {
-    const { itemHistory, counts, user, cartCount, cart, userItems } =
+    const { pendingTransactions, cart, cartCount, items, user } =
         useLoaderData<typeof loader>();
 
     const action = useActionData<CheckinActionData>();
 
     const revalidator = useRevalidator();
     const navigation = useNavigation();
+
+    useEffect(() => {}, []);
 
     const noteFieldRef = useRef<HTMLTextAreaElement>(null);
 
@@ -205,7 +232,6 @@ export default function ShedCheckOutRoute() {
 
     invariant(user, "Check out information not found");
 
-    console.log({ userItems });
     // Focuses the note field when it is shown and puts the cursor at the end
     useEffect(() => {
         if (!showNoteField || !noteFieldRef.current) return;
@@ -219,15 +245,14 @@ export default function ShedCheckOutRoute() {
 
     return (
         <section className="flex flex-col-reverse md:flex-row gap-12 items-start">
-            <div className="w-full md:basis-1/2">
+            <div className="w-full md:basis-3/5">
                 <h2
                     className={clsx(
                         "theme-text-h3 mb-8 flex gap-2 items-center"
                     )}>
-                    <Backpack size={36} />
-                    Your bag
+                    My Transactions
                 </h2>
-                {userItems.length < 1 ? (
+                {!pendingTransactions ? (
                     <h3 className="theme-text-h4 rounded-lg w-full">
                         No items in cart,{" "}
                         <Link
@@ -239,25 +264,50 @@ export default function ShedCheckOutRoute() {
                     </h3>
                 ) : (
                     <ul className="flex flex-col gap-4">
-                        {userItems.map((item) => {
-                            console.log({ item });
-                            const count = counts[item.name];
+                        {pendingTransactions.map((tx) => {
+                            const timeAgo = dayjs().to(dayjs(tx.created_at));
+
+                            console.log({ item: tx });
                             return (
                                 <li
-                                    key={item.id}
+                                    key={tx.id}
                                     className="bg-base-200 flex flex-col py-2 px-4 rounded-lg">
-                                    <div className="flex justify-between items-center">
-                                        <div className="flex flex-col gap-2">
-                                            <span className="theme-text-h4 py-2">
-                                                {item.name}
+                                    <div className="flex flex-col gap-2">
+                                        <div className="flex justify-between items-center">
+                                            <span className="theme-text-h4 py-2 flex gap-2 items-center">
+                                                {tx.item_count} item
+                                                {tx.item_count > 1
+                                                    ? "s"
+                                                    : ""}{" "}
                                             </span>
-                                            <Link
-                                                className="link link-primary"
-                                                to={`/shed/activity/${item.id}`}>
-                                                View activity
-                                            </Link>
+                                            <span className="flex gap-2 items-center">
+                                                <MapPin />
+                                                {tx.inventory.name}
+                                            </span>
                                         </div>
-                                        <span>Quantity: {count}</span>
+                                        <div className="justify-between flex gap-2 items-center">
+                                            <ul>
+                                                {tx.items.map(
+                                                    (item: unknown) => {
+                                                        if (!isTxItem(item))
+                                                            return null;
+                                                        return (
+                                                            <li
+                                                                key={`tx-${tx.id}-${item.name}`}>
+                                                                {item.quantity}{" "}
+                                                                {item.name}
+                                                            </li>
+                                                        );
+                                                    }
+                                                )}
+                                            </ul>
+                                            <span className="opacity-60 self-start">
+                                                {timeAgo}
+                                            </span>
+                                        </div>
+                                        <button className="btn btn-secondary">
+                                            Return
+                                        </button>
                                     </div>
                                 </li>
                             );
@@ -266,7 +316,7 @@ export default function ShedCheckOutRoute() {
                 )}
             </div>
 
-            <aside className="w-full md:basis-1/2 sticky top-0 md:top-6">
+            <aside className="w-full md:basis-2/5 sticky top-0 md:top-6">
                 <div className="rounded-lg border-base-300 bg-base-200 p-8 border">
                     <h2 className="theme-text-h3">Information</h2>
                     <Form
@@ -313,8 +363,8 @@ export default function ShedCheckOutRoute() {
                             </>
                         ) : (
                             <span className="theme-text-p">
-                                Check out as{" "}
-                                <span className="font-bold">{user.name}</span>
+                                Checking in as{" "}
+                                <span className="font-bold">{user?.name}</span>
                             </span>
                         )}
                         {showNoteField ? (
@@ -377,7 +427,7 @@ export default function ShedCheckOutRoute() {
                         </button>
                     </Form>
                 </div>
-                {itemHistory?.length > 0 && (
+                {/* {itemHistory?.length > 0 && (
                     <div className="rounded-lg border-base-100 bg-base-200 p-8 border md:mt-2">
                         <h2 className="theme-text-h3">Item log</h2>
                         <ul>
@@ -386,7 +436,7 @@ export default function ShedCheckOutRoute() {
                             })}
                         </ul>
                     </div>
-                )}
+                )} */}
             </aside>
         </section>
     );

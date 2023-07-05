@@ -6,8 +6,9 @@ import {
     useLoaderData,
     useNavigation,
     useRevalidator,
+    useSubmit,
 } from "@remix-run/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import clsx from "clsx";
 import invariant from "tiny-invariant";
@@ -17,7 +18,6 @@ import { checkout } from "~/data/inventory";
 import { getInfoFromUserById, getUserInfoById } from "~/data/user";
 import type { AdjustedItem, ProcessedCart } from "~/utils/cart";
 import {
-    countItemsInCart,
     calculateInventoryAndCartQuantities,
     isProcessedStockWithCart,
 } from "~/utils/cart";
@@ -31,12 +31,20 @@ import { getUserId } from "~/utils/session.server";
 
 import { FormAlert } from "~/components/FormAlert";
 
-import type { FieldErrors, FormActionData } from "~/types/form";
-import type { ActionFunction, LoaderArgs } from "@remix-run/node";
-import { getCollectionOfItems } from "~/data/item";
-import { Backpack, Clock, MapPin } from "lucide-react";
-import type { ShedTransaction, Transaction } from "@prisma/client";
+import type { FieldErrors, FormActionData, TxActionData } from "~/types/form";
+import type {
+    ActionFunction,
+    LoaderArgs,
+    TypedResponse,
+} from "@remix-run/node";
+import { MapPin } from "lucide-react";
 import { isTxItem } from "~/types/tx";
+import {
+    validateDisplayName,
+    validateNote,
+} from "~/helper/TransactionFormValidators";
+import { resolveTransactions } from "~/data/transaction";
+import { RESOLVE_TX_STATUS } from "~/types/inventory";
 
 const TRANSACTION_NOTE_MAX_LENGTH = 200;
 
@@ -54,7 +62,6 @@ Modal.setAppElement("#root");
 
 type LoaderData = {
     pendingTransactions: PendingTransactions;
-    itemHistory: ShedTransaction[];
     user: Awaited<ReturnType<typeof getUserInfoById>>;
     items: AdjustedItem[];
     cart: ProcessedCart | null;
@@ -116,7 +123,9 @@ export const loader = async ({ request, params }: LoaderArgs) => {
     return json(data);
 };
 
-export const action: ActionFunction = async ({ request }) => {
+export const action: ActionFunction = async ({
+    request,
+}): Promise<TypedResponse<TxActionData>> => {
     const userId = await getUserId(request);
 
     invariant(userId, "Could not check out cart");
@@ -126,90 +135,101 @@ export const action: ActionFunction = async ({ request }) => {
     });
 
     const form = await request.formData();
-    const cart = form.get("cart");
+    const txs = form.get("transactions");
     const note = form.get("note") || "";
-    const displayName = form.get("display-name") || "";
     const hasNote = form.get("has-note") === "true";
 
-    console.log({ cart, note, displayName, hasNote });
-
-    if (
-        typeof cart !== "string" ||
-        typeof note !== "string" ||
-        typeof displayName !== "string"
-    ) {
-        return badRequest<CheckinActionData>({
+    if (typeof txs !== "string" || typeof note !== "string") {
+        return badRequest<TxActionData>({
             formError: "Invalid Request",
             fieldErrors: null,
             fields: null,
+            type: RESOLVE_TX_STATUS.FAILURE,
+            message: "Some fields are invalid",
         });
     }
 
-    const fields: CheckinFields = { note, displayName };
-
-    const validateDisplayName = (displayName: string) => {
-        if (user.account_type === "GUEST" && !displayName)
-            return "Display name is required";
-    };
-    const validateNote = (note: string) => {
-        if (hasNote && note.length < 10)
-            return "Note should be at least 10 characters";
-        if (note.length > TRANSACTION_NOTE_MAX_LENGTH)
-            return `Note should not exceed ${TRANSACTION_NOTE_MAX_LENGTH} characters`;
-    };
+    const fields: CheckinFields = { note };
 
     const fieldErrors: CheckinFieldErrors = {
-        displayName: validateDisplayName(displayName),
-        note: validateNote(note),
+        note: validateNote(note, hasNote),
     };
 
     if (Object.values(fieldErrors).some(Boolean)) {
-        return badRequest<CheckinActionData>({
+        return badRequest<TxActionData>({
             formError: "Some fields are invalid",
             fields,
             fieldErrors,
+            type: RESOLVE_TX_STATUS.FAILURE,
+            message: "Some fields are invalid",
         });
     }
 
-    console.log("VALID!@");
+    try {
+        const affectedTxs = await resolveTransactions(JSON.parse(txs));
 
-    const checkoutResult = await checkout({
-        cart: JSON.parse(cart),
-        displayName,
-        user,
-        note,
-    });
-
-    if (checkoutResult.type === "CHECKOUT_FAILURE") {
-        console.log(checkoutResult);
-        return badRequest<CheckinActionData>({
-            formError: checkoutResult.message,
+        return json({
+            type: RESOLVE_TX_STATUS.SUCCESS,
+            data: { transactions: affectedTxs },
+            formError: null,
+            fields: null,
+            fieldErrors: null,
+            message: "Successfullly returned items!",
+        });
+    } catch (err) {
+        const error = err as Error;
+        return badRequest<TxActionData>({
+            formError: error.message,
             fields,
             fieldErrors,
+            type: RESOLVE_TX_STATUS.FAILURE,
+            message: error.message,
         });
     }
-    console.log(checkoutResult);
-
-    return json(checkoutResult);
 };
 
-export default function ShedCheckOutRoute() {
-    const { pendingTransactions, cart, cartCount, items, user } =
+export default function InventoryCheckInRoute() {
+    const { pendingTransactions, cartCount, user } =
         useLoaderData<typeof loader>();
 
-    const action = useActionData<CheckinActionData>();
+    const action = useActionData<TxActionData>();
 
     const revalidator = useRevalidator();
     const navigation = useNavigation();
+    const submit = useSubmit();
 
-    useEffect(() => {}, []);
+    const isIdle = navigation.state === "idle";
+
+    useEffect(() => {
+        console.log(action?.type);
+        if (action?.type === RESOLVE_TX_STATUS.SUCCESS) {
+            setNote("");
+            setShowNoteField(false);
+            setSelectedTxs([]);
+        }
+    }, [action?.type]);
 
     const noteFieldRef = useRef<HTMLTextAreaElement>(null);
 
-    const [displayName, setDisplayName] = useState<string | undefined>("");
+    const [selectedTxs, setSelectedTxs] = useState<string[]>([]);
 
     const [showNoteField, setShowNoteField] = useState(false);
     const [note, setNote] = useState("");
+
+    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+
+        //Client side validation here
+
+        //Create form data
+        const formData = new FormData();
+        formData.append("transactions", JSON.stringify(selectedTxs));
+        formData.append("note", note);
+        formData.append("has-note", String(showNoteField));
+
+        // Submit form
+        submit(formData, { method: "POST" });
+    };
 
     useEffect(() => {
         // Updates the updatedTime and reloads the data
@@ -231,6 +251,10 @@ export default function ShedCheckOutRoute() {
     }, []);
 
     invariant(user, "Check out information not found");
+    const filteredTxs = useMemo(
+        () => pendingTransactions.filter((tx) => selectedTxs.includes(tx.id)),
+        [selectedTxs]
+    );
 
     // Focuses the note field when it is shown and puts the cursor at the end
     useEffect(() => {
@@ -241,6 +265,12 @@ export default function ShedCheckOutRoute() {
         noteField.focus();
     }, [showNoteField, noteFieldRef.current]);
 
+    const addToSelected = (id: string) => (e: any) =>
+        setSelectedTxs((prev) => [...selectedTxs, id]);
+
+    const removeFromSelected = (id: string) => (e: any) =>
+        setSelectedTxs((prev) => prev.filter((txId) => txId !== id));
+
     const submitting = navigation.state === "submitting";
 
     return (
@@ -248,7 +278,7 @@ export default function ShedCheckOutRoute() {
             <div className="w-full md:basis-3/5">
                 <h2
                     className={clsx(
-                        "theme-text-h3 mb-8 flex gap-2 items-center"
+                        "theme-text-h4 mb-8 flex gap-2 items-center"
                     )}>
                     My Transactions
                 </h2>
@@ -263,22 +293,24 @@ export default function ShedCheckOutRoute() {
                         .
                     </h3>
                 ) : (
-                    <ul className="flex flex-col gap-4">
+                    <ul className="flex flex-col gap-8">
                         {pendingTransactions.map((tx) => {
                             const timeAgo = dayjs().to(dayjs(tx.created_at));
 
-                            console.log({ item: tx });
                             return (
                                 <li
                                     key={tx.id}
-                                    className="bg-base-200 flex flex-col py-2 px-4 rounded-lg">
-                                    <div className="flex flex-col gap-2">
+                                    className="shadow-lg flex flex-col py-2 px-4 rounded-lg">
+                                    <div className="flex flex-col gap-4">
                                         <div className="flex justify-between items-center">
                                             <span className="theme-text-h4 py-2 flex gap-2 items-center">
                                                 {tx.item_count} item
                                                 {tx.item_count > 1
                                                     ? "s"
                                                     : ""}{" "}
+                                                {tx.by_guest
+                                                    ? `by ${tx.PERMA_user_display_name}`
+                                                    : ""}
                                             </span>
                                             <span className="flex gap-2 items-center">
                                                 <MapPin />
@@ -305,9 +337,21 @@ export default function ShedCheckOutRoute() {
                                                 {timeAgo}
                                             </span>
                                         </div>
-                                        <button className="btn btn-secondary">
-                                            Return
-                                        </button>
+                                        {selectedTxs.includes(tx.id) ? (
+                                            <button
+                                                onClick={removeFromSelected(
+                                                    tx.id
+                                                )}
+                                                className="btn btn-error">
+                                                Remove
+                                            </button>
+                                        ) : (
+                                            <button
+                                                onClick={addToSelected(tx.id)}
+                                                className="btn btn-secondary btn-outline">
+                                                Return
+                                            </button>
+                                        )}
                                     </div>
                                 </li>
                             );
@@ -317,55 +361,34 @@ export default function ShedCheckOutRoute() {
             </div>
 
             <aside className="w-full md:basis-2/5 sticky top-0 md:top-6">
-                <div className="rounded-lg border-base-300 bg-base-200 p-8 border">
-                    <h2 className="theme-text-h3">Information</h2>
+                <div className="p-8">
+                    <h2 className="theme-text-h4">Information</h2>
                     <Form
+                        onSubmit={handleSubmit}
                         method="POST"
                         className="flex flex-col gap-2">
                         <FormAlert
                             variant="warning"
                             condition={action?.formError}
                         />
-                        <input
-                            name="cart"
-                            type="hidden"
-                            value={JSON.stringify(cart)}></input>
-                        <input
-                            name="has-note"
-                            type="hidden"
-                            value={String(showNoteField)}
-                        />
-                        {user.account_type === "GUEST" ? (
-                            <>
-                                <span>
-                                    You are signed in as{" "}
-                                    <span className="font-bold">
-                                        {user.name}
-                                    </span>
-                                    , please provide a name
-                                </span>
-                                <input
-                                    className="input input-bordered"
-                                    name="display-name"
-                                    onChange={(e) => {
-                                        setDisplayName(e.target.value);
-                                        if (action?.fieldErrors?.displayName)
-                                            action.fieldErrors.displayName =
-                                                undefined;
-                                    }}
-                                    value={displayName}
-                                    placeholder="Enter your name or group name"
-                                />
-                                <FormAlert
-                                    variant="error"
-                                    condition={action?.fieldErrors?.displayName}
-                                />
-                            </>
-                        ) : (
-                            <span className="theme-text-p">
-                                Checking in as{" "}
-                                <span className="font-bold">{user?.name}</span>
-                            </span>
+                        <span className="theme-text-p">
+                            Checking in as{" "}
+                            <span className="font-bold">{user?.name}</span>
+                        </span>
+                        {selectedTxs.length > 0 && (
+                            <ul className="bg-base-200 border border-base-300 rounded-lg p-2">
+                                {filteredTxs.map((tx) => (
+                                    <li key={tx.id}>
+                                        Return{" "}
+                                        {tx.by_guest
+                                            ? `${tx.PERMA_user_display_name}'s`
+                                            : ""}{" "}
+                                        {tx.item_count} item
+                                        {tx.item_count > 1 ? "s" : ""} at{" "}
+                                        {tx.inventory.name}
+                                    </li>
+                                ))}
+                            </ul>
                         )}
                         {showNoteField ? (
                             <>
@@ -403,14 +426,14 @@ export default function ShedCheckOutRoute() {
                                     condition={action?.fieldErrors?.note}
                                 />
                                 <button
-                                    className="btn btn-error"
+                                    className="btn btn-error btn-sm"
                                     onClick={(e) => setShowNoteField(false)}>
                                     Cancel Note
                                 </button>
                             </>
                         ) : (
                             <button
-                                className="btn btn-secondary"
+                                className="btn btn-secondary btn-sm"
                                 type="button"
                                 onClick={(e) => {
                                     setShowNoteField(true);
@@ -418,25 +441,17 @@ export default function ShedCheckOutRoute() {
                                 Add a note
                             </button>
                         )}
-                        <button
-                            className={clsx("btn btn-primary", {
-                                "btn-warning": submitting,
-                                "btn-disabled": cartCount < 1,
-                            })}>
-                            {submitting ? "Submitting..." : "Submit"}
-                        </button>
+                        {isIdle && selectedTxs && selectedTxs.length > 0 && (
+                            <button
+                                className={clsx("btn btn-primary", {
+                                    "btn-warning": submitting,
+                                    "btn-disabled": cartCount < 1,
+                                })}>
+                                {submitting ? "Submitting..." : "Submit"}
+                            </button>
+                        )}
                     </Form>
                 </div>
-                {/* {itemHistory?.length > 0 && (
-                    <div className="rounded-lg border-base-100 bg-base-200 p-8 border md:mt-2">
-                        <h2 className="theme-text-h3">Item log</h2>
-                        <ul>
-                            {itemHistory.map((tx) => {
-                                return <li key={tx.id}>{tx.display_name}</li>;
-                            })}
-                        </ul>
-                    </div>
-                )} */}
             </aside>
         </section>
     );

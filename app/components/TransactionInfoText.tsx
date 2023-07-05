@@ -4,6 +4,11 @@ import { Check, Clock } from "lucide-react";
 import type { MultipleTransactions } from "~/data/transaction";
 import type { Unpacked } from "~/types/utils";
 
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
+
+dayjs.extend(relativeTime);
+
 export type TransactionInfoTextProps = {
     item: Unpacked<MultipleTransactions>;
     isSelected: boolean;
@@ -15,7 +20,6 @@ export const TransactionTableRow = ({
     detailsLink,
     isSelected,
 }: TransactionInfoTextProps) => {
-    console.log(item);
     return (
         <>
             <tr className="hidden md:table-row hover">
@@ -36,7 +40,9 @@ export const TransactionTableRow = ({
                             )}
                         </span>
                         <span className="font-bold">
-                            {item.user
+                            {item.by_guest
+                                ? item.PERMA_user_display_name
+                                : item.user
                                 ? item.user.name
                                 : item.PERMA_user_display_name}{" "}
                         </span>
@@ -54,6 +60,16 @@ export const TransactionTableRow = ({
                                 ? item.inventory.name
                                 : item.PERMA_inventory_name}
                         </span>
+                        {item.checkout_type === "TEMPORARY" &&
+                            item.resolved_at && (
+                                <span>
+                                    {" "}
+                                    for{" "}
+                                    {dayjs(item.created_at)
+                                        .from(dayjs(item.resolved_at))
+                                        .replace("ago", "")}
+                                </span>
+                            )}
                     </div>
                 </td>
                 {!isSelected && (

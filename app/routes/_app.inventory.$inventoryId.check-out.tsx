@@ -39,6 +39,7 @@ import type {
     LoaderArgs,
     TypedResponse,
 } from "@remix-run/node";
+import { CREATE_TX_STATUS } from "~/types/inventory";
 
 const TRANSACTION_NOTE_MAX_LENGTH = 200;
 
@@ -107,7 +108,7 @@ export const action: ActionFunction = async ({
             formError: "Invalid Request",
             fieldErrors: null,
             fields: null,
-            type: "CHECKOUT_FAILURE",
+            type: CREATE_TX_STATUS.FAILURE,
             message: "Invalid Request",
         });
     }
@@ -129,7 +130,7 @@ export const action: ActionFunction = async ({
             formError: "Some fields are invalid",
             fields,
             fieldErrors,
-            type: "CHECKOUT_FAILURE",
+            type: CREATE_TX_STATUS.FAILURE,
             message: "Some fields are invalid",
         });
     }
@@ -149,7 +150,7 @@ export const action: ActionFunction = async ({
         note,
     });
 
-    if (checkoutResult.type === "CHECKOUT_FAILURE") {
+    if (checkoutResult.type === CREATE_TX_STATUS.FAILURE) {
         console.log(checkoutResult);
         return badRequest<TxActionData>({
             formError: checkoutResult.message,
@@ -255,12 +256,14 @@ export default function InventoryCheckoutRoute() {
         };
     }, []);
     useEffect(() => {
-        if (action?.type === "CHECKOUT_SUCCESS") {
+        console.log({ action });
+        if (action?.type === CREATE_TX_STATUS.SUCCESS) {
             setShowNoteField(false);
             setNote("");
         }
     }, [action]);
 
+    console.log({ action });
     // Focuses the note field when it is shown and puts the cursor at the end
     useEffect(() => {
         if (!showNoteField || !noteFieldRef.current) return;
@@ -274,22 +277,21 @@ export default function InventoryCheckoutRoute() {
         <section className="flex flex-col-reverse md:flex-row gap-12 items-start">
             <div className="w-full md:basis-4/6">
                 <h2 className={clsx("theme-text-h3 mb-8")}>
-                    {action?.type === "CHECKOUT_SUCCESS" && isIdle
+                    {action?.type === CREATE_TX_STATUS.SUCCESS && isIdle
                         ? `${action.message}`
                         : "Cart"}
                 </h2>
                 {!sortedItems ? (
-                    action?.type === "CHECKOUT_SUCCESS" ? (
+                    action?.type === CREATE_TX_STATUS.SUCCESS ? (
                         <>
                             <ul className="flex flex-col gap-2">
                                 {action.data.transactions.map((tx) => {
                                     return (
-                                        <li
+                                        <FormAlert
                                             key={tx.id}
-                                            className="rounded-lg bg-success text-success-content px-4 py-2">
-                                            {" "}
-                                            Created {tx.id} at {tx.created_at}
-                                        </li>
+                                            variant="success"
+                                            condition={`Created ${tx.id} at ${tx.created_at}`}
+                                        />
                                     );
                                 })}
                             </ul>

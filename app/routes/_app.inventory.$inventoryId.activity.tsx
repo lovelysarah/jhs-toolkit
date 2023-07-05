@@ -224,14 +224,15 @@ export default function InventoryActivityRoute() {
 
     return (
         <section>
-            {transactionDetails && (
+            {/* {transactionDetails && (
                 <ShowDetails
                     data={{
                         ...transactionDetails,
                         created_at: new Date(transactionDetails.created_at),
+                        
                     }}
                 />
-            )}
+            )} */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                 <div className="basis-1/3">
                     <h2 className="theme-text-h3">All</h2>
@@ -329,6 +330,9 @@ export default function InventoryActivityRoute() {
                                 item={{
                                     ...item,
                                     created_at: new Date(item.created_at),
+                                    resolved_at: item.resolved_at
+                                        ? new Date(item.resolved_at)
+                                        : null,
                                 }}
                                 detailsLink={detailsLink.toString()}
                             />

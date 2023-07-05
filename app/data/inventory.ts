@@ -1,6 +1,6 @@
 import { db } from "~/utils/db.server";
 import { nanoid } from "nanoid";
-import { CHECKOUT_ERROR_MESSAGES } from "~/types/inventory";
+import { CHECKOUT_ERROR_MESSAGES, CREATE_TX_STATUS } from "~/types/inventory";
 
 import type {
     Prisma,
@@ -12,9 +12,10 @@ import type {
 import type { InfoFromUser } from "./user";
 import type { ProcessedCart } from "~/utils/cart";
 import type {
-    CreateTxFailure,
     CreateTxResult,
-    CreateTxSuccess,
+    TxFailure,
+    TxResult,
+    TxSuccess,
 } from "~/types/inventory";
 
 type TransactionInput = {
@@ -77,6 +78,7 @@ const createTransaction = async ({
             PERMA_inventory_name: inventory.name,
             PERMA_user_account: user.name,
 
+            by_guest: user.account_type === "GUEST",
             item_count: itemCount,
 
             items: items.map(({ quantity, item }) => ({
@@ -115,7 +117,7 @@ export const checkout = async ({
     note,
     user,
     cart,
-}: CheckoutQueryInfo): Promise<CreateTxResult> => {
+}: CheckoutQueryInfo): Promise<TxResult<CreateTxResult>> => {
     const result = await db
         .$transaction(async (tx) => {
             const transactions = [] as Pick<Transaction, "id" | "created_at">[];
@@ -154,12 +156,12 @@ export const checkout = async ({
             });
 
             return {
-                type: "CHECKOUT_SUCCESS",
+                type: CREATE_TX_STATUS.SUCCESS,
                 data: { transactions },
                 message: `Successfully created ${
                     transactions.length
                 } transaction${transactions.length > 1 ? "s" : ""}`,
-            } satisfies CreateTxSuccess;
+            } satisfies TxSuccess<CreateTxResult>;
         })
         .catch((e) => {
             const error = e as Error;
@@ -168,9 +170,9 @@ export const checkout = async ({
                 message = CHECKOUT_ERROR_MESSAGES.NO_STOCK;
 
             return {
-                type: "CHECKOUT_FAILURE",
+                type: CREATE_TX_STATUS.FAILURE,
                 message,
-            } satisfies CreateTxFailure;
+            } satisfies TxFailure;
         });
 
     return result;

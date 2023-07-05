@@ -1,31 +1,12 @@
 import type { Prisma } from "@prisma/client";
-import { countItemsInCart } from "~/utils/cart";
 import { db } from "~/utils/db.server";
 
 // Returns details about a specific transaction
 export const getTransactionDetails = async (transactionId: string) => {
-    const transactionDetails = await db.shedTransaction.findFirstOrThrow({
+    return await db.transaction.findFirstOrThrow({
         where: { id: transactionId },
-        select: {
-            id: true,
-            item_ids: true,
-            display_name: true,
-            user: { select: { name: true } },
-            shed_location: true,
-            action_type: true,
-            note: true,
-            created_at: true,
-        },
+        include: { inventory: true, user: true },
     });
-
-    const transactionCartCount = countItemsInCart(
-        transactionDetails.item_ids.sort()
-    );
-
-    return {
-        ...transactionDetails,
-        count: transactionCartCount,
-    };
 };
 export type TransactionDetails = Awaited<
     ReturnType<typeof getTransactionDetails>
@@ -42,8 +23,10 @@ export const getTransactionsFromRange = async <
         select: {
             id: true,
             items: true,
+            by_guest: true,
             status: true,
             action_type: true,
+            resolved_at: true,
             created_at: true,
             checkout_type: true,
             PERMA_user_account: true,
@@ -57,3 +40,20 @@ export const getTransactionsFromRange = async <
 export type MultipleTransactions = Awaited<
     ReturnType<typeof getTransactionsFromRange>
 >;
+
+export const resolveTransactions = async (ids: string[]) => {
+    return await db.$transaction(async (tx) => {
+        await tx.transaction.updateMany({
+            where: { id: { in: ids } },
+            data: {
+                status: "COMPLETED",
+                resolved_at: new Date(),
+            },
+        });
+
+        return await db.transaction.findMany({
+            where: { id: { in: ids } },
+            select: { id: true, status: true, resolved_at: true },
+        });
+    });
+};

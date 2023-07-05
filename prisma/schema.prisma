@@ -10,24 +10,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Category {
-  GENERAL
-  GARDENING
-  HEAVY_EQUIPMENT
-  TOOL
-  WINTER
-  SUMMER
-}
-
-enum ShedLocation {
-  JOYCE
-  FLANDERS
-}
-
-enum InventoryActionType {
-  CHECK_IN
-  CHECK_OUT
-}
 
 model Tag {
   id String @id @default(auto()) @map("_id") @db.ObjectId
@@ -85,29 +67,16 @@ model InventoryLocation {
   tags         Tag[]
 
   deleted_at      DateTime?
-  ShedTransaction ShedTransaction[]
-}
-
-model ShedTransaction {
-  id            String       @id @default(auto()) @map("_id") @db.ObjectId
-  item_ids      String[]
-  shed_location ShedLocation
-
-  action_type  InventoryActionType
-  note         String?
-  created_at   DateTime            @default(now())
-  display_name String
-
-  location    InventoryLocation @relation(fields: [location_id], references: [id])
-  location_id String            @db.ObjectId
-
-  user    User   @relation(fields: [user_id], references: [id])
-  user_id String @db.ObjectId
 }
 
 enum TransactionStatus {
   PENDING
   COMPLETED
+}
+
+enum InventoryActionType {
+  CHECK_IN
+  CHECK_OUT
 }
 
 model Transaction {
@@ -126,7 +95,10 @@ model Transaction {
   checkout_type CHECKOUT_TYPE
   note          String?
 
+  by_guest Boolean @default(false)
+
   created_at DateTime @default(now())
+  resolved_at DateTime?
 
   inventory    InventoryLocation @relation(fields: [inventory_id], references: [id])
   inventory_id String            @db.ObjectId
@@ -164,9 +136,6 @@ model User {
   name              String
   account_type      ACCOUNT_TYPE
   carts             Cart[]
-  shed_cart         String[]
-  shed_checked_out  String[]
-  shed_transactions ShedTransaction[]
   transactions      Transaction[]
   deleted_at        DateTime?
   version           Int               @default(0)

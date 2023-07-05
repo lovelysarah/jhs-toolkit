@@ -21,7 +21,6 @@ export const getUserInfoById = async (id: string) => {
             username: true,
             id: true,
             account_type: true,
-            shed_cart: true,
             name: true,
         },
     });

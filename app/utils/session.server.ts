@@ -1,17 +1,15 @@
 import bcrypt from "bcryptjs";
 import { db } from "./db.server";
 import { KEYS } from "~/constant/cookie.server";
-import { saveUserCart } from "~/data/cart";
 import { createCookieSessionStorage, redirect } from "@remix-run/node";
-import { User } from "@prisma/client";
-import { resolveNaptr } from "dns";
+import type { User } from "@prisma/client";
 
 // Verify that session secret is set
 const sessionSecret = process.env.SESSION_SECRET;
 if (!sessionSecret) throw new Error("SESSION_SECRET is not set");
 
 // Pick the fields we want to expose from the user
-type BasicUserInformation = Pick<User, "id" | "username" | "shed_cart">;
+type BasicUserInformation = Pick<User, "id" | "username">;
 
 type LoginForm = {
     username: string;
@@ -31,9 +29,10 @@ type AuthFailure = {
 
 type AuthResponse = AuthSuccess | AuthFailure;
 
-type LoginFunction = ({}: LoginForm) => Promise<AuthResponse>;
-
-const badResponse = (error: Error): AuthFailure => ({ success: false, error });
+type LoginFunction = ({
+    username,
+    password,
+}: LoginForm) => Promise<AuthResponse>;
 
 // Authenticate a user
 export const login: LoginFunction = async ({ username, password }) => {
@@ -62,7 +61,6 @@ export const login: LoginFunction = async ({ username, password }) => {
         user: {
             id: user.id,
             username: user.username,
-            shed_cart: user.shed_cart,
         },
     };
 };
@@ -109,7 +107,6 @@ export const createUserSession: CreateUserSessionFunction = async (
     const session = await getSession();
 
     session.set(KEYS.USER_ID, user.id);
-    session.set(KEYS.SHED_CART, user.shed_cart);
 
     return redirect(redirectTo, {
         headers: {
@@ -146,15 +143,6 @@ export const requireUser = async (
 };
 export async function logout(request: Request) {
     const session = await getUserSession(request);
-
-    const userId = await getUserId(request);
-    const cartItems = (await session.get(KEYS.SHED_CART)) as
-        | string[]
-        | undefined;
-
-    if (userId && cartItems) {
-        await saveUserCart(userId, cartItems);
-    }
 
     return redirect("/auth", {
         headers: {

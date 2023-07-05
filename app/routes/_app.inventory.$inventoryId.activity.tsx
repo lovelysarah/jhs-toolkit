@@ -1,8 +1,15 @@
 import clsx from "clsx";
 import { json } from "@remix-run/node";
-import { Search, X } from "lucide-react";
+import { Loader2, Search, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Form, Link, useLoaderData, useSearchParams } from "@remix-run/react";
+import {
+    Form,
+    Link,
+    useLoaderData,
+    useNavigation,
+    useParams,
+    useSearchParams,
+} from "@remix-run/react";
 
 import Pagination from "~/components/Pagination";
 import { TransactionTableRow } from "~/components/TransactionInfoText";
@@ -15,11 +22,11 @@ import type { Prisma } from "@prisma/client";
 import {
     getTransactionDetails,
     getTransactionsFromRange,
-} from "~/data/shedTransaction";
+} from "~/data/transaction";
 import type {
     MultipleTransactions,
     TransactionDetails,
-} from "~/data/shedTransaction";
+} from "~/data/transaction";
 
 import { getUsersThatHaveShedTransactions } from "~/data/user";
 
@@ -51,8 +58,8 @@ export const loader = async ({ request }: LoaderArgs) => {
     const currentPage = Math.max(Number(query.get("page")) || 1);
 
     // Set query options for pagination
-    const countOptions: Prisma.ShedTransactionCountArgs = {};
-    const options: Prisma.ShedTransactionFindManyArgs = {
+    const countOptions: Prisma.TransactionCountArgs = {};
+    const options: Prisma.TransactionFindManyArgs = {
         take: PER_PAGE,
         skip: (currentPage - 1) * PER_PAGE,
         orderBy: { created_at: "desc" },
@@ -72,7 +79,7 @@ export const loader = async ({ request }: LoaderArgs) => {
     const [users, transactions, transactionCount] = await Promise.all([
         getUsersThatHaveShedTransactions(),
         getTransactionsFromRange(options),
-        db.shedTransaction.count(countOptions),
+        db.transaction.count(countOptions),
     ]);
 
     console.log(transactions[0]);
@@ -184,7 +191,7 @@ const ShowDetails = ({ data }: { data: TransactionDetails }) => {
         </div>
     );
 };
-export default function ShedActivityRoute() {
+export default function InventoryActivityRoute() {
     const {
         transactions,
         transactionCount,
@@ -193,7 +200,12 @@ export default function ShedActivityRoute() {
         transactionDetails,
     } = useLoaderData<typeof loader>();
 
+    useEffect(() => {
+        console.log({ transactions });
+    }, [transactions]);
     const [searchParams] = useSearchParams();
+    const params = useParams();
+    const nav = useNavigation();
 
     const finalPage = Math.ceil(transactionCount / PER_PAGE);
 
@@ -207,7 +219,7 @@ export default function ShedActivityRoute() {
 
     const detailsLink = new URLSearchParams(searchParams);
 
-    const largeList = ["Summary"];
+    const largeList = ["Date", "Summary"];
     const smallList = ["Name", "Details"];
 
     return (
@@ -261,19 +273,29 @@ export default function ShedActivityRoute() {
                                 setNameFilterSelected("DEFAULT");
                                 setNameFilter(false);
                             }}
-                            to="/shed/activity"
+                            to={`/inventory/${params.inventoryId}/activity`}
                             className="btn btn-error">
                             <X />
                         </Link>
                     )}
 
-                    <button className="btn btn-info flex gap-2 items-center">
-                        <Search />
+                    <button
+                        className={clsx(
+                            "btn btn-primary flex gap-2 items-center",
+                            {
+                                "btn-disabled": nav.state !== "idle",
+                            }
+                        )}>
+                        {nav.state !== "idle" ? (
+                            <Loader2 className="animate-spin" />
+                        ) : (
+                            <Search />
+                        )}
                         <span className="hidden md:inline">Search</span>
                     </button>
                 </Form>
             </div>
-            <table className="table w-full z-10">
+            <table className="table w-full z-10 table-compact my-8">
                 {/* head */}
                 <thead className="hidden sm:table-header-group">
                     <tr>

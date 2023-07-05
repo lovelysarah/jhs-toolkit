@@ -1,6 +1,7 @@
 import { Link } from "@remix-run/react";
 import clsx from "clsx";
-import type { MultipleTransactions } from "~/data/shedTransaction";
+import { Check, Clock } from "lucide-react";
+import type { MultipleTransactions } from "~/data/transaction";
 import type { Unpacked } from "~/types/utils";
 
 export type TransactionInfoTextProps = {
@@ -17,7 +18,8 @@ export const TransactionTableRow = ({
     console.log(item);
     return (
         <>
-            <tr className="hidden md:table-row">
+            <tr className="hidden md:table-row hover">
+                <td>{item.created_at.toLocaleDateString()}</td>
                 <td
                     className={clsx({
                         "whitespace-normal": true,
@@ -25,19 +27,33 @@ export const TransactionTableRow = ({
                     })}
                     id={item.id}>
                     <div>
-                        <span className="font-bold">{item.display_name} </span>
+                        <span className="mr-2">
+                            {item.checkout_type === "TEMPORARY" &&
+                            item.status === "PENDING" ? (
+                                <Clock className="inline" />
+                            ) : (
+                                <Check className="inline" />
+                            )}
+                        </span>
+                        <span className="font-bold">
+                            {item.user
+                                ? item.user.name
+                                : item.PERMA_user_display_name}{" "}
+                        </span>
                         {item.action_type === "CHECK_OUT"
-                            ? "took"
+                            ? item.checkout_type === "PERMANENT"
+                                ? "took"
+                                : "borrowed"
                             : "brought back"}{" "}
-                        <span className="font-bold link link-primary">
-                            {item.item_ids.length} items
+                        <span className="font-bold">
+                            {item.items.length} items
                         </span>
                         {" from"}{" "}
-                        {item.shed_location === "FLANDERS"
-                            ? "15 Flanders Court"
-                            : "170 Joyce Ave"}
-                        {" at"} {item.created_at.toLocaleTimeString()}
-                        {" on"} {item.created_at.toLocaleDateString()}
+                        <span className="font-bold">
+                            {item.inventory
+                                ? item.inventory.name
+                                : item.PERMA_inventory_name}
+                        </span>
                     </div>
                 </td>
                 {!isSelected && (
@@ -57,18 +73,18 @@ export const TransactionTableRow = ({
                         ? "took"
                         : "brought back"}{" "}
                     <span className="font-bold link link-primary">
-                        {item.item_ids.length} items
+                        {item.items.length} items
                     </span>
                     {" from"}{" "}
-                    {item.shed_location === "FLANDERS"
-                        ? "15 Flanders Court"
-                        : "170 Joyce Ave"}
+                    {item.inventory
+                        ? item.inventory.name
+                        : item.PERMA_inventory_name}
                 </td>
                 <td>{item.created_at.toLocaleDateString()}</td>
             </tr>
             <tr className="sm:hidden">
                 <td>{item.user.name}</td>
-                <td>{item.item_ids.length} items</td>
+                <td>{item.items.length} items</td>
             </tr>
         </>
     );

@@ -1,7 +1,6 @@
-import type { ACCOUNT_TYPE } from "@prisma/client";
+import type { ACCOUNT_TYPE, Prisma } from "@prisma/client";
 import { db } from "~/utils/db.server";
 import { generateHash } from "~/utils/hash";
-import type { Prisma } from "@prisma/client";
 
 export const getInfoFromUserById = async (
     id: string,
@@ -87,7 +86,7 @@ export type ModifyUserResult = Awaited<ReturnType<typeof modifyUser>>;
 export const getUsersThatHaveShedTransactions = async () => {
     return await db.user.findMany({
         where: {
-            shed_transactions: {
+            transactions: {
                 some: {},
             },
         },

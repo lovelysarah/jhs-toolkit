@@ -33,21 +33,25 @@ export type TransactionDetails = Awaited<
 
 // Returns a list of transactions
 export const getTransactionsFromRange = async <
-    T extends Prisma.ShedTransactionFindManyArgs
+    T extends Prisma.TransactionFindManyArgs
 >(
     options: T
 ) => {
-    return await db.shedTransaction.findMany({
+    return await db.transaction.findMany({
+        ...options,
         select: {
             id: true,
-            shed_location: true,
-            item_ids: true,
+            items: true,
+            status: true,
             action_type: true,
             created_at: true,
-            display_name: true,
+            checkout_type: true,
+            PERMA_user_account: true,
+            PERMA_user_display_name: true,
+            PERMA_inventory_name: true,
+            inventory: { select: { name: true } },
             user: { select: { name: true } },
         },
-        ...options,
     });
 };
 export type MultipleTransactions = Awaited<

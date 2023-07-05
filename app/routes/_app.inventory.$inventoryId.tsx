@@ -19,6 +19,7 @@ import { db } from "~/utils/db.server";
 
 import type { LoaderFunction } from "@remix-run/node";
 import invariant from "tiny-invariant";
+import clsx from "clsx";
 
 type LoaderData = {
     cartCount: number;
@@ -61,6 +62,12 @@ type ShedMenuLink = {
     icon: JSX.Element;
 };
 const shedMenuLinks: ShedMenuLink[] = [
+    // {
+    //     text: "Debug transactions",
+    //     href: "debug",
+    //     display: true,
+    //     icon: <List />,
+    // },
     {
         text: "Activity",
         href: "activity",
@@ -87,6 +94,13 @@ const shedMenuLinks: ShedMenuLink[] = [
     },
 ];
 
+const VALID_INVENTORY_SUB_PATH = [
+    "activity",
+    "summary",
+    "check-in",
+    "check-out",
+];
+
 export default function ManageShedRoute() {
     // Get cart count from loader data
     const { cartCount, locationName } = useLoaderData<LoaderData>();
@@ -97,7 +111,10 @@ export default function ManageShedRoute() {
     // Get the title from the URL
     const location = useLocation();
     const paths = location.pathname.split("/");
-    const subPath = paths[paths.length - 1];
+    console.log("---------------");
+    const subPath = VALID_INVENTORY_SUB_PATH.includes(paths[paths.length - 1])
+        ? paths[paths.length - 1]
+        : "Overview";
 
     return (
         <section className="">
@@ -130,29 +147,27 @@ export default function ManageShedRoute() {
                             );
                         };
 
-                        const activeClasses = "btn btn-outline btn-primary";
-                        const checkoutRoute = link.href === "/shed/check-out";
-
-                        const passiveClasses =
-                            cartCount > 0
-                                ? "btn btn-ghost bg-base-100"
-                                : checkoutRoute
-                                ? "btn btn-ghost bg-base-100 btn-disabled opacity-50"
-                                : "btn btn-ghost bg-base-100";
-
                         const linkTo = `/inventory/${params.inventoryId}/${link.href}`;
+                        const checkoutRoute =
+                            linkTo ===
+                            `/inventory/${params.inventoryId}/check-out`;
 
                         return (
                             <NavLink
                                 key={link.text}
                                 to={linkTo}
-                                className={({ isActive, isPending }) =>
-                                    isPending
-                                        ? "btn btn-ghost flex gap-2"
-                                        : isActive
-                                        ? activeClasses + " flex gap-2"
-                                        : passiveClasses + " flex gap-2"
-                                }
+                                className={({ isActive, isPending }) => {
+                                    return clsx(
+                                        "btn btn-ghost flex gap-2 bg-base",
+                                        {
+                                            "btn-outline text-primary btn-primary":
+                                                isActive,
+                                            "btn-disabled opacity-50":
+                                                checkoutRoute &&
+                                                cartCount === 0,
+                                        }
+                                    );
+                                }}
                                 end={link.end}>
                                 {nav.location?.pathname === linkTo &&
                                 nav.state !== "idle" ? (

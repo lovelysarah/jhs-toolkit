@@ -37,8 +37,10 @@ type LoginFunction = ({
 // Authenticate a user
 export const login: LoginFunction = async ({ username, password }) => {
     // Look for the user by username
-    const user = await db.user.findUnique({
-        where: { username },
+    const user = await db.user.findFirst({
+        where: {
+            AND: [{ username: username }, { deleted_at: { isSet: false } }],
+        },
     });
 
     const invalidCredentials: AuthFailure = {
@@ -84,8 +86,8 @@ export const requireAdmin = async (
 ) => {
     const userId = await requireUser(request, redirectTo);
 
-    const user = await db.user.findUnique({
-        where: { id: userId },
+    const user = await db.user.findFirst({
+        where: { AND: [{ id: userId }, { deleted_at: { isSet: false } }] },
         select: { account_type: true, username: true, name: true },
     });
 
@@ -156,10 +158,12 @@ export async function getUser(request: Request) {
     if (typeof userId !== "string") return null;
 
     try {
-        const user = await db.user.findUnique({
-            where: { id: userId },
+        const user = await db.user.findFirst({
+            where: { AND: [{ id: userId }, { deleted_at: { isSet: false } }] },
             select: { id: true, username: true, account_type: true },
         });
+
+        if (!user) throw new Error("User not found");
 
         return user;
     } catch {

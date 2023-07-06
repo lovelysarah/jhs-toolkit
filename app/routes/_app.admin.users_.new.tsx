@@ -1,12 +1,14 @@
-import { ActionFunction, redirect } from "@remix-run/node";
+import { redirect } from "@remix-run/node";
 import { Form, Link, useActionData } from "@remix-run/react";
-import { CreateUserActionData } from "~/types/form";
 import { FormAlert } from "~/components/FormAlert";
 import { createUser } from "~/data/user";
 import { validateUserCreationForm } from "~/helper/UserFormValidator";
 import { useEffect, useState } from "react";
 import { badRequest } from "~/utils/request.server";
 import { db } from "~/utils/db.server";
+
+import type { ActionFunction } from "@remix-run/node";
+import type { CreateUserActionData } from "~/types/form";
 
 export const action: ActionFunction = async ({ request }) => {
     // Get the form data
@@ -33,7 +35,12 @@ export const action: ActionFunction = async ({ request }) => {
 
     // Check if the user already exists
     const userExists = await db.user.findFirst({
-        where: { username: validatedData.username },
+        where: {
+            AND: [
+                { username: validatedData.username },
+                { deleted_at: { isSet: false } },
+            ],
+        },
     });
 
     // If the user exists, return a 400 with an error message
@@ -46,8 +53,7 @@ export const action: ActionFunction = async ({ request }) => {
     }
 
     // Create the user
-    const createdUser = await createUser(validatedData);
-    console.log("test");
+    await createUser(validatedData);
 
     // Redirect to the user page
     return redirect("/admin/users");

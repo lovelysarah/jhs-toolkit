@@ -164,7 +164,7 @@ export const validateUserUpdateForm = async (
     }
 
     const userExists = await db.user.findFirst({
-        where: { username: username },
+        where: { AND: [{ username }, { deleted_at: { isSet: false } }] },
     });
 
     // If the username is taken, return failure except if it's the user getting updated

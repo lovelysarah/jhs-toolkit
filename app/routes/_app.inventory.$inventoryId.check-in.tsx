@@ -102,11 +102,6 @@ export const loader = async ({ request, params }: LoaderArgs) => {
     invariant(userId, "Was expecting userId");
     invariant(inventoryId, "Was expecting inventoryId");
 
-    // const { shed_checked_out, shed_cart } = await db.user.findUniqueOrThrow({
-    // where: { id: userId },
-    // select: { shed_checked_out: true, shed_cart: true },
-    // });
-
     const inventoryData = await calculateInventoryAndCartQuantities(
         inventoryId,
         userId
@@ -129,10 +124,6 @@ export const action: ActionFunction = async ({
     const userId = await getUserId(request);
 
     invariant(userId, "Could not check out cart");
-
-    const user = await getInfoFromUserById(userId, {
-        select: { account_type: true, id: true, name: true },
-    });
 
     const form = await request.formData();
     const txs = form.get("transactions");

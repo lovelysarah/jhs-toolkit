@@ -1,5 +1,4 @@
-import { ACCOUNT_TYPE } from "@prisma/client";
-import { ActionFunction, LoaderFunction, json } from "@remix-run/node";
+import { json } from "@remix-run/node";
 import {
     Form,
     Link,
@@ -11,17 +10,19 @@ import {
     useSubmit,
 } from "@remix-run/react";
 import clsx from "clsx";
-import { AlertTriangle, Trash } from "lucide-react";
+import { Archive, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import invariant from "tiny-invariant";
-import { UserInfo, getUserInfoById, modifyUser } from "~/data/user";
+import { getUserInfoById, modifyUser } from "~/data/user";
 import { FormAlert } from "~/components/FormAlert";
 import { validateUserUpdateForm } from "~/helper/UserFormValidator";
-import {
-    CreateUserActionData,
-    FORM_VALIDATION_RESULT_TYPE,
-} from "~/types/form";
+import { FORM_VALIDATION_RESULT_TYPE } from "~/types/form";
 import { db } from "~/utils/db.server";
+
+import type { ACCOUNT_TYPE } from "@prisma/client";
+import type { ActionFunction, LoaderFunction } from "@remix-run/node";
+import type { UserInfo } from "~/data/user";
+import type { CreateUserActionData } from "~/types/form";
 
 type LoaderData = {
     user: UserInfo;
@@ -38,7 +39,7 @@ export const loader: LoaderFunction = async ({ request, params }) => {
     }
 
     const data: LoaderData = {
-        user: await getUserInfoById(params.id),
+        user,
     };
 
     return json(data);
@@ -48,7 +49,7 @@ export const action: ActionFunction = async ({ request, params }) => {
     invariant(params.id, "Expected user ID!");
 
     const user = await db.user.findFirst({
-        where: { id: params.id },
+        where: { AND: [{ id: params.id }, { deleted_at: { isSet: false } }] },
     });
 
     if (!user) {
@@ -250,15 +251,19 @@ export default function AdminManageUserRoute() {
 
                 {/* // BROKEN */}
                 {state !== "loading" && (
-                    <button
-                        onClick={() =>
-                            confirmDelete.current &&
-                            confirmDelete.current.showModal()
-                        }
-                        className="flex gap-2 btn btn-ghost text-error-content">
-                        <Trash />
-                        Delete
-                    </button>
+                    <Form
+                        method="DELETE"
+                        action="/admin/action/delete-user">
+                        <input
+                            type="hidden"
+                            name="id"
+                            value={user.id}
+                        />
+                        <button className="flex gap-2 btn btn-ghost items-center text-error-content">
+                            {state === "submitting" ? <Loader2 /> : <Archive />}
+                            Archive
+                        </button>
+                    </Form>
                 )}
             </div>
             <Form

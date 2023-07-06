@@ -2,6 +2,7 @@ import type { ACCOUNT_TYPE, Prisma } from "@prisma/client";
 import { db } from "~/utils/db.server";
 import { generateHash } from "~/utils/hash";
 
+//TODO: Get rid of duplicate code
 export const getInfoFromUserById = async (
     id: string,
     select: Pick<Prisma.UserFindFirstOrThrowArgs, "select">
@@ -15,8 +16,8 @@ export const getInfoFromUserById = async (
 export type InfoFromUser = Awaited<ReturnType<typeof getInfoFromUserById>>;
 
 export const getUserInfoById = async (id: string) => {
-    return await db.user.findUniqueOrThrow({
-        where: { id },
+    return await db.user.findFirstOrThrow({
+        where: { AND: [{ id }, { deleted_at: { isSet: false } }] },
         select: {
             username: true,
             id: true,
@@ -30,6 +31,7 @@ export type UserInfo = Awaited<ReturnType<typeof getUserInfoById>>;
 
 export const getAllUsers = async () => {
     return await db.user.findMany({
+        where: { deleted_at: { isSet: false } },
         orderBy: { account_type: "asc" },
         select: { id: true, username: true, account_type: true, name: true },
     });
@@ -82,7 +84,7 @@ export const modifyUser = async (id: string, data: CreateUserInput) => {
 export type ModifyUserResult = Awaited<ReturnType<typeof modifyUser>>;
 
 // Returns a list of users that have at least 1 shed transactions
-export const getUsersThatHaveShedTransactions = async () => {
+export const getUsersWithATransaction = async () => {
     return await db.user.findMany({
         where: {
             transactions: {
@@ -93,6 +95,6 @@ export const getUsersThatHaveShedTransactions = async () => {
     });
 };
 
-export type UsersWithAShedTransaction = Awaited<
-    ReturnType<typeof getUsersThatHaveShedTransactions>
+export type UsersWithATransaction = Awaited<
+    ReturnType<typeof getUsersWithATransaction>
 >;

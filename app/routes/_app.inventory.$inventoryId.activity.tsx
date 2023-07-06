@@ -16,7 +16,7 @@ import { TransactionTableRow } from "~/components/TransactionInfoText";
 
 import { db } from "~/utils/db.server";
 
-import type { UsersWithAShedTransaction } from "~/data/user";
+import type { UsersWithATransaction } from "~/data/user";
 import type { LoaderArgs } from "@remix-run/node";
 import type { Prisma } from "@prisma/client";
 import {
@@ -28,13 +28,13 @@ import type {
     TransactionDetails,
 } from "~/data/transaction";
 
-import { getUsersThatHaveShedTransactions } from "~/data/user";
+import { getUsersWithATransaction } from "~/data/user";
 
 // How many transactions to show per page
 const PER_PAGE = 7;
 
 type LoaderData = {
-    users: UsersWithAShedTransaction;
+    users: UsersWithATransaction;
     transactionDetails: TransactionDetails;
     transactions: MultipleTransactions;
     transactionCount: number;
@@ -77,7 +77,7 @@ export const loader = async ({ request }: LoaderArgs) => {
 
     // Read from database
     const [users, transactions, transactionCount] = await Promise.all([
-        getUsersThatHaveShedTransactions(),
+        getUsersWithATransaction(),
         getTransactionsFromRange(options),
         db.transaction.count(countOptions),
     ]);

@@ -131,15 +131,17 @@ model Item {
 
 model User {
   id                String            @id @default(auto()) @map("_id") @db.ObjectId
-  username          String            @unique
+  username          String            
   password          String
   name              String
   account_type      ACCOUNT_TYPE
   carts             Cart[]
   transactions      Transaction[]
-  deleted_at        DateTime?
   version           Int               @default(0)
   Tag               Tag[]
+  deleted_at        DateTime?
+
+  @@unique([username, deleted_at])
 }
 
 enum ACCOUNT_TYPE {

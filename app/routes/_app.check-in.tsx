@@ -14,8 +14,7 @@ import clsx from "clsx";
 import invariant from "tiny-invariant";
 import Modal from "react-modal";
 
-import { checkout } from "~/data/inventory";
-import { getInfoFromUserById, getUserInfoById } from "~/data/user";
+import { getUserInfoById } from "~/data/user";
 import type { AdjustedItem, ProcessedCart } from "~/utils/cart";
 import {
     calculateInventoryAndCartQuantities,
@@ -31,7 +30,7 @@ import { getUserId } from "~/utils/session.server";
 
 import { FormAlert } from "~/components/FormAlert";
 
-import type { FieldErrors, FormActionData, TxActionData } from "~/types/form";
+import type { TxActionData, TxFieldErrors, TxFields } from "~/types/form";
 import type {
     ActionFunction,
     LoaderArgs,
@@ -39,32 +38,19 @@ import type {
 } from "@remix-run/node";
 import { MapPin } from "lucide-react";
 import { isTxItem } from "~/types/tx";
-import {
-    validateDisplayName,
-    validateNote,
-} from "~/helper/TransactionFormValidators";
+import { validateNote } from "~/helper/TransactionFormValidators";
 import { resolveTransactions } from "~/data/transaction";
 import { RESOLVE_TX_STATUS } from "~/types/inventory";
 
 const TRANSACTION_NOTE_MAX_LENGTH = 200;
 
-type CheckinFields = {
-    displayName?: string;
-    note?: string;
-};
-
 dayjs.extend(relativeTime);
-
-type CheckinFieldErrors = FieldErrors<CheckinFields>;
-type CheckinActionData = FormActionData<CheckinFieldErrors, CheckinFields>;
 
 Modal.setAppElement("#root");
 
 type LoaderData = {
     pendingTransactions: PendingTransactions;
     user: Awaited<ReturnType<typeof getUserInfoById>>;
-    items: AdjustedItem[];
-    cart: ProcessedCart | null;
     cartCount: number;
     counts: Record<string, number>;
 };
@@ -86,7 +72,6 @@ type PendingTransactions = Awaited<ReturnType<typeof getPendingTxs>>;
 export const loader = async ({ request, params }: LoaderArgs) => {
     const data = {} as LoaderData;
     const userId = await getUserId(request);
-    const inventoryId = params.inventoryId;
 
     // Get the query parameters
     const url = new URL(request.url);
@@ -100,20 +85,10 @@ export const loader = async ({ request, params }: LoaderArgs) => {
     }
 
     invariant(userId, "Was expecting userId");
-    invariant(inventoryId, "Was expecting inventoryId");
-
-    const inventoryData = await calculateInventoryAndCartQuantities(
-        inventoryId,
-        userId
-    );
 
     data.pendingTransactions = await getPendingTxs(userId);
-    data.cart = isProcessedStockWithCart(inventoryData)
-        ? inventoryData.cart
-        : null;
     data.cartCount = 21;
     data.user = await getUserInfoById(userId);
-    data.items = inventoryData.items;
 
     return json(data);
 };
@@ -140,9 +115,9 @@ export const action: ActionFunction = async ({
         });
     }
 
-    const fields: CheckinFields = { note };
+    const fields: TxFields = { note };
 
-    const fieldErrors: CheckinFieldErrors = {
+    const fieldErrors: TxFieldErrors = {
         note: validateNote(note, hasNote),
     };
 
@@ -269,7 +244,7 @@ export default function InventoryCheckInRoute() {
             <div className="w-full md:basis-3/5">
                 <h2
                     className={clsx(
-                        "theme-text-h4 mb-8 flex gap-2 items-center"
+                        "theme-text-h3 b-8 flex gap-2 items-center"
                     )}>
                     My Transactions
                 </h2>

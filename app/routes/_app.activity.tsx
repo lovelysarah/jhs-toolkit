@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import { json } from "@remix-run/node";
 import { Loader2, Search, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
     Form,
     Link,
@@ -20,11 +20,13 @@ import type { UsersWithATransaction } from "~/data/user";
 import type { LoaderArgs } from "@remix-run/node";
 import type { Prisma } from "@prisma/client";
 import {
+    getPendingTransactions,
     getTransactionDetails,
     getTransactionsFromRange,
 } from "~/data/transaction";
 import type {
     MultipleTransactions,
+    PendingTransactions,
     TransactionDetails,
 } from "~/data/transaction";
 
@@ -38,6 +40,7 @@ type LoaderData = {
     transactionDetails: TransactionDetails;
     transactions: MultipleTransactions;
     transactionCount: number;
+    pendingTx: PendingTransactions;
     offset: number;
 };
 export const loader = async ({ request }: LoaderArgs) => {
@@ -76,14 +79,17 @@ export const loader = async ({ request }: LoaderArgs) => {
     }
 
     // Read from database
-    const [users, transactions, transactionCount] = await Promise.all([
-        getUsersWithATransaction(),
-        getTransactionsFromRange(options),
-        db.transaction.count(countOptions),
-    ]);
+    const [users, transactions, transactionCount, pendingTx] =
+        await Promise.all([
+            getUsersWithATransaction(),
+            getTransactionsFromRange(options),
+            db.transaction.count(countOptions),
+            getPendingTransactions(),
+        ]);
 
     console.log(transactions[0]);
     // Set the data
+    data.pendingTx = pendingTx;
     data.users = users;
     data.transactions = transactions;
     data.transactionCount = transactionCount;
@@ -197,6 +203,7 @@ export default function InventoryActivityRoute() {
         transactionCount,
         users,
         offset,
+        pendingTx,
         transactionDetails,
     } = useLoaderData<typeof loader>();
 
@@ -235,7 +242,7 @@ export default function InventoryActivityRoute() {
             )} */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                 <div className="basis-1/3">
-                    <h2 className="theme-text-h3">All</h2>
+                    <h2 className="theme-text-h3">Browse transactions</h2>
                     <span className="text-sm">
                         {transactions.length > 1
                             ? `Displaying items [${offset + 1} - ${
@@ -274,7 +281,7 @@ export default function InventoryActivityRoute() {
                                 setNameFilterSelected("DEFAULT");
                                 setNameFilter(false);
                             }}
-                            to={`/inventory/${params.inventoryId}/activity`}
+                            to={`/activity`}
                             className="btn btn-error">
                             <X />
                         </Link>
@@ -347,6 +354,58 @@ export default function InventoryActivityRoute() {
                     pageParam="page"
                 />
             )}
+
+            <div className="divider"></div>
+            <div>
+                <h3 className="theme-text-h3">Pending transactions</h3>
+                <table className="table w-full z-10 table-compact my-8">
+                    {/* head */}
+                    <thead className="hidden sm:table-header-group">
+                        <tr>
+                            {largeList.map((th) => (
+                                <th
+                                    className="bg-base-100"
+                                    key={th}>
+                                    {th}
+                                </th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <thead className="table-header-group sm:hidden">
+                        <tr>
+                            {smallList.map((th) => (
+                                <th
+                                    className="bg-base-100"
+                                    key={th}>
+                                    {th}
+                                </th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {pendingTx.map((item) => {
+                            detailsLink.set("transaction", item.id);
+                            return (
+                                <TransactionTableRow
+                                    key={item.id}
+                                    isSelected={
+                                        transactionDetails?.id === item.id
+                                    }
+                                    item={{
+                                        ...item,
+                                        created_at: new Date(item.created_at),
+                                        resolved_at: item.resolved_at
+                                            ? new Date(item.resolved_at)
+                                            : null,
+                                    }}
+                                    detailsLink={detailsLink.toString()}
+                                />
+                            );
+                        })}
+                        {/* row 2 */}
+                    </tbody>
+                </table>
+            </div>
         </section>
     );
 }

@@ -76,7 +76,7 @@ export const TransactionTableRow = ({
                     <td>
                         <Link
                             to={`?${detailsLink}`}
-                            className="btn btn-ghost self-end">
+                            className="btn btn-ghost btn-sm self-end">
                             View details
                         </Link>
                     </td>

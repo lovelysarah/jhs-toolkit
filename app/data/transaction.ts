@@ -57,3 +57,29 @@ export const resolveTransactions = async (ids: string[]) => {
         });
     });
 };
+
+export const getPendingTransactions = async () => {
+    return await db.transaction.findMany({
+        where: { status: "PENDING" },
+        orderBy: { created_at: "desc" },
+        select: {
+            id: true,
+            items: true,
+            by_guest: true,
+            status: true,
+            action_type: true,
+            resolved_at: true,
+            created_at: true,
+            checkout_type: true,
+            PERMA_user_account: true,
+            PERMA_user_display_name: true,
+            PERMA_inventory_name: true,
+            inventory: { select: { name: true } },
+            user: { select: { name: true } },
+        },
+    });
+};
+
+export type PendingTransactions = Awaited<
+    ReturnType<typeof getPendingTransactions>
+>;

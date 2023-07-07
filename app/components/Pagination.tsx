@@ -36,9 +36,10 @@ const Pagination = ({
                 )}
                 {currentPage > 1 && (
                     <Link
+                        preventScrollReset
                         className="btn"
                         to={`?${previousQuery.toString()}`}>
-                        Previous Page
+                        Previous
                     </Link>
                 )}
                 <span className="btn btn-active">Page {currentPage}</span>
@@ -47,9 +48,10 @@ const Pagination = ({
                 )}
                 {currentPage < totalPages && (
                     <Link
+                        preventScrollReset
                         className="btn"
                         to={`?${nextQuery.toString()}`}>
-                        Next Page
+                        Next
                     </Link>
                 )}
             </nav>

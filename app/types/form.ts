@@ -14,6 +14,11 @@ export type LocationFormData = {
     description: string;
 };
 
+export type TagFormData = {
+    name: string;
+    description: string;
+};
+
 export type ItemFormData = {
     name: string;
     description: string;
@@ -65,6 +70,11 @@ export type ModifyLocationActionData = FormActionData<
     ModifyLocationFieldErrors,
     ModifyLocationFields
 >;
+
+// Tag
+export type TagFields = TagFormData;
+export type TagFieldErrors = FieldErrors<TagFields>;
+export type TagActionData = FormActionData<TagFieldErrors, TagFields>;
 
 // Item
 export type ItemFields = ItemFormData;

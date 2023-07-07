@@ -1,28 +1,21 @@
-import { LoaderArgs, SerializeFrom, json } from "@remix-run/node";
-import {
-    Link,
-    useLoaderData,
-    useNavigation,
-    useParams,
-} from "@remix-run/react";
-import { Edit, Edit2, Loader, PackagePlus, Tag } from "lucide-react";
+import { json } from "@remix-run/node";
+import { Link, useLoaderData, useNavigation } from "@remix-run/react";
+import { Edit, Loader } from "lucide-react";
 import { useState } from "react";
 import invariant from "tiny-invariant";
-import { Unpacked } from "~/types/utils";
 import { db } from "~/utils/db.server";
-const findAllLocationsWithCounts = async () => {
-    return await db.inventoryLocation.findMany({
-        include: {
-            _count: {
-                select: { items: true },
-            },
-        },
-    });
-};
 
-const findAllItemsOfLocationById = async (locationId: string) => {
+import type { LoaderArgs, SerializeFrom } from "@remix-run/node";
+import type { Unpacked } from "~/types/utils";
+
+const findAllItemsOfLocationById = async (inventoryId: string) => {
     return await db.item.findMany({
-        where: { location: { short_id: locationId } },
+        where: {
+            AND: [
+                { deleted_at: { isSet: false } },
+                { location: { short_id: inventoryId } },
+            ],
+        },
         orderBy: [{ tag: { name: "asc" } }, { name: "asc" }],
         include: {
             tag: true,
@@ -33,12 +26,8 @@ const findAllItemsOfLocationById = async (locationId: string) => {
 
 type ItemsWithLocation = Awaited<ReturnType<typeof findAllItemsOfLocationById>>;
 
-type LocationsWithCount = Awaited<
-    ReturnType<typeof findAllLocationsWithCounts>
->;
-
 export const loader = async ({ request, params }: LoaderArgs) => {
-    const inventoryId = params.locationId;
+    const inventoryId = params.inventoryId;
     invariant(inventoryId, "Invalid inventory id");
 
     const location = await db.inventoryLocation.findFirstOrThrow({
@@ -47,7 +36,12 @@ export const loader = async ({ request, params }: LoaderArgs) => {
 
     const items = await findAllItemsOfLocationById(inventoryId);
     const tags = await db.tag.findMany({
-        where: { inventory: { short_id: inventoryId } },
+        where: {
+            AND: [
+                { inventory: { short_id: inventoryId } },
+                { deleted_at: { isSet: false } },
+            ],
+        },
         orderBy: { name: "asc" },
     });
 
@@ -99,7 +93,6 @@ const TableRow = ({ item, onSelect, isSelected }: TableRowProps) => {
 
 export default function AdminCreateUserRoute() {
     const { items, location, tags } = useLoaderData<typeof loader>();
-    const params = useParams();
 
     const smallList = ["Name"];
     const largeList = ["Name", "Quantity"];

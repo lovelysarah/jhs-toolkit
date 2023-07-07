@@ -12,19 +12,19 @@ import {
     useSubmit,
 } from "@remix-run/react";
 import clsx from "clsx";
-import { Trash } from "lucide-react";
+import { Archive, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import invariant from "tiny-invariant";
 import { FormAlert } from "~/components/FormAlert";
-import type {
-    ModifyLocationActionData,
-    ModifyLocationFieldErrors,
-} from "~/types/form";
+import { deleteTag, editTag } from "~/controller/tag";
 import { db } from "~/utils/db.server";
 import { badRequest } from "~/utils/request.server";
+import { requireAdmin } from "~/utils/session.server";
+
+import type { TagActionData } from "~/types/form";
 
 export const loader = async ({ request, params }: LoaderArgs) => {
-    invariant(params.locationId, "Something went wrong!");
+    invariant(params.inventoryId, "Something went wrong!");
 
     invariant(params.tagId, "Something went wrong!");
 
@@ -37,72 +37,24 @@ export const loader = async ({ request, params }: LoaderArgs) => {
     return json(data);
 };
 
-export const action: ActionFunction = async ({ request, params }) => {
-    invariant(params.locationId, "Expected location ID!");
-    invariant(params.tagId, "Expected tag ID!");
+export const action: ActionFunction = async (args) => {
+    await requireAdmin(args.request);
 
-    const location = await db.inventoryLocation.findFirst({
-        where: { short_id: params.locationId },
-    });
-
-    const tag = await db.tag.findFirst({
-        where: { id: params.tagId },
-    });
-
-    if (!location || !tag) {
-        throw new Error("Something went wrong, not found");
+    switch (args.request.method) {
+        case "POST":
+            return await editTag(args);
+        case "DELETE":
+            return await deleteTag(args);
+        default:
+            return badRequest({
+                formError: "Invalid request method",
+            });
     }
-
-    const form = await request.formData();
-    const name = form.get("name") || tag.name;
-    const description = form.get("description");
-
-    if (typeof name !== "string" || typeof description !== "string") {
-        return badRequest<ModifyLocationActionData>({
-            fieldErrors: null,
-            fields: null,
-            formError: "Invalid form data",
-        });
-    }
-
-    const fields = { name, description };
-
-    const validateName = (name: string) => {
-        if (name.length < 5) return "Name must be at least 5 characters long";
-    };
-
-    const validateDescription = (description: string) => {
-        if (description.length > 100)
-            return "Description must be less than 100 characters long";
-    };
-
-    const fieldErrors: ModifyLocationFieldErrors = {
-        name: validateName(name),
-        description: validateDescription(description),
-    };
-
-    if (Object.values(fieldErrors).some(Boolean)) {
-        return badRequest<ModifyLocationActionData>({
-            formError: "Some fields are invalid",
-            fields,
-            fieldErrors,
-        });
-    }
-
-    await db.tag.update({
-        where: { id: params.tagId },
-        data: {
-            name,
-            description,
-        },
-    });
-
-    return json({ success: true }, { status: 201 });
 };
 
 export default function AdminManageEditLocationRoute() {
     const { tag } = useLoaderData<typeof loader>();
-    const action = useActionData<ModifyLocationActionData>();
+    const action = useActionData<TagActionData>();
     const { state } = useNavigation();
     const params = useParams();
 
@@ -207,24 +159,16 @@ export default function AdminManageEditLocationRoute() {
                     {tag.name}
                 </h1>
 
-                {/* // BROKEN */}
                 {state !== "loading" && (
-                    <Form
-                        method="DELETE"
-                        action="/admin/action/delete-location">
+                    <Form method="DELETE">
                         <input
                             type="hidden"
                             name="id"
                             value={tag.id}
                         />
-                        <button
-                            onClick={() =>
-                                confirmDelete.current &&
-                                confirmDelete.current.showModal()
-                            }
-                            className="flex gap-2 btn btn-ghost text-error-content">
-                            <Trash />
-                            Delete
+                        <button className="flex gap-2 btn btn-ghost items-center text-error-content">
+                            {state === "submitting" ? <Loader2 /> : <Archive />}
+                            Archive
                         </button>
                     </Form>
                 )}
@@ -292,7 +236,7 @@ export default function AdminManageEditLocationRoute() {
                 )}
                 {isIdle && (
                     <Link
-                        to={`/admin/items/${params.locationId}`}
+                        to={`/admin/items/${params.inventoryId}`}
                         className="btn btn-error btn-outline text-error-content">
                         Close
                     </Link>

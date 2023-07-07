@@ -18,13 +18,15 @@ model Tag {
   description String
   items       Item[]
 
-  inventory   InventoryLocation @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+  inventory   InventoryLocation @relation(fields: [inventoryId], references: [id])
   inventoryId String            @db.ObjectId
 
   created_at DateTime @default(now())
 
   created_by    User   @relation(fields: [created_by_id], references: [id])
   created_by_id String @db.ObjectId
+
+  deleted_at DateTime?
 }
 
 enum CHECKOUT_TYPE {
@@ -37,7 +39,7 @@ model CartItem {
   checkout_type CHECKOUT_TYPE
 
   quantity Int
-  item     Item   @relation(fields: [item_id], references: [id], onDelete: Cascade)
+  item     Item   @relation(fields: [item_id], references: [id])
   item_id  String @db.ObjectId
 
   cart    Cart   @relation(fields: [cart_id], references: [id], onDelete: Cascade)
@@ -60,7 +62,6 @@ model InventoryLocation {
   short_id     String        @unique
   description  String?
   name         String
-  display_name String
   items        Item[]
   carts        Cart[]
   transactions Transaction[]
@@ -127,6 +128,8 @@ model Item {
 
   location    InventoryLocation @relation(fields: [location_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
   location_id String            @db.ObjectId
+
+  deleted_at DateTime?
 }
 
 model User {

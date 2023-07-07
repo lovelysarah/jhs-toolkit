@@ -3,8 +3,6 @@ import { Form, Link, useActionData, useParams } from "@remix-run/react";
 import { FormAlert } from "~/components/FormAlert";
 import { badRequest } from "~/utils/request.server";
 
-import { nanoid } from "nanoid";
-
 import type { ActionFunction } from "@remix-run/node";
 import type {
     ModifyLocationActionData,
@@ -12,11 +10,11 @@ import type {
 } from "~/types/form";
 import { Tag } from "lucide-react";
 import { db } from "~/utils/db.server";
-import { getUserId, requireUser } from "~/utils/session.server";
+import { requireAdmin } from "~/utils/session.server";
 
 export const action: ActionFunction = async ({ request, params }) => {
-    const inventoryId = params.locationId;
-    const userId = await requireUser(request);
+    const inventoryId = params.inventoryId;
+    const admin = await requireAdmin(request);
     // Get the form data
     const form = await request.formData();
     const name = form.get("name");
@@ -66,7 +64,7 @@ export const action: ActionFunction = async ({ request, params }) => {
                 description: description,
                 created_at: new Date(),
                 inventory: { connect: { short_id: inventoryId } },
-                created_by: { connect: { id: userId } },
+                created_by: { connect: { id: admin.id } },
             },
         });
 
@@ -160,7 +158,7 @@ export default function AdminCreateUserRoute() {
                     Create Tag
                 </button>
                 <Link
-                    to={`/admin/items/${params.locationId}`}
+                    to={`/admin/items/${params.inventoryId}`}
                     className="btn btn-error btn-outline">
                     Cancel
                 </Link>

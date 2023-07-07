@@ -13,7 +13,12 @@ export const countItemsInCart = (cart: string[]): { [key: string]: number } =>
 
 const getItemsbyInventoryId = async (inventoryId: string) => {
     return await db.item.findMany({
-        where: { location: { short_id: inventoryId } },
+        where: {
+            AND: [
+                { location: { short_id: inventoryId } },
+                { deleted_at: { isSet: false } },
+            ],
+        },
         select: {
             tag: { select: { name: true, description: true } },
             name: true,

@@ -88,7 +88,7 @@ export const requireAdmin = async (
 
     const user = await db.user.findFirst({
         where: { AND: [{ id: userId }, { deleted_at: { isSet: false } }] },
-        select: { account_type: true, username: true, name: true },
+        select: { account_type: true, username: true, name: true, id: true },
     });
 
     if (!user || user.account_type !== "ADMIN")

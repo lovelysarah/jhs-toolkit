@@ -45,7 +45,7 @@ export const loader = async ({ request, params }: LoaderArgs) => {
     const locations: LocationsWithCount = await findAllLocationsWithCounts();
 
     const data = {
-        selected: params.locationId || null,
+        selected: params.inventoryId || null,
         users: users,
         items: items,
         locations: locations,

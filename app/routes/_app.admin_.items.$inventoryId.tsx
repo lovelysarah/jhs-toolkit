@@ -12,26 +12,28 @@ import { Edit, Menu, PackagePlus, Tag } from "lucide-react";
 import { db } from "~/utils/db.server";
 import invariant from "tiny-invariant";
 
-export const loader = async ({ request, params }: LoaderArgs) => {
-    const locationId = params.locationId;
+export const loader = async ({ params }: LoaderArgs) => {
     const inventoryId = params.inventoryId;
 
-    invariant(locationId, "Invalid location id");
+    invariant(inventoryId, "Invalid location id");
 
     const users = await getAllUsers();
 
     const tags = await db.tag.findMany({
-        where: { inventory: { short_id: locationId } },
+        where: {
+            AND: [
+                { inventory: { short_id: inventoryId } },
+                { deleted_at: { isSet: false } },
+            ],
+        },
         orderBy: { name: "asc" },
-        include: {
-            _count: {
-                select: {
-                    items: true,
-                },
-            },
+        select: {
+            name: true,
+            id: true,
+            items: { where: { deleted_at: { isSet: false } } },
         },
     });
-    console.log(tags);
+    console.log(tags[0]);
     const data = {
         tags,
         users: users,
@@ -54,8 +56,8 @@ export default function AdminManageShedRoute() {
                 <nav className="py-4 flex gap-2">
                     {tags.length > 0 && (
                         <NavLink
-                            to={`/admin/items/${params.locationId}/new-item`}
-                            className={({ isActive, isPending }) => {
+                            to={`/admin/items/${params.inventoryId}/new-item`}
+                            className={({ isActive }) => {
                                 const base = "flex-1 flex gap-2 btn";
                                 return isActive
                                     ? base + " btn-primary btn-outline"
@@ -66,8 +68,8 @@ export default function AdminManageShedRoute() {
                         </NavLink>
                     )}
                     <NavLink
-                        to={`/admin/items/${params.locationId}/new-tag`}
-                        className={({ isActive, isPending }) => {
+                        to={`/admin/items/${params.inventoryId}/new-tag`}
+                        className={({ isActive }) => {
                             const base = "flex-1 flex gap-2 btn";
                             return isActive
                                 ? base + " btn-primary btn-outline"
@@ -89,11 +91,11 @@ export default function AdminManageShedRoute() {
                                 className="">
                                 <Link
                                     className="btn btn-ghost flex gap-2 justify-between items-center"
-                                    to={`/admin/items/${params.locationId}/edit-tag/${tag.id}`}>
+                                    to={`/admin/items/${params.inventoryId}/edit-tag/${tag.id}`}>
                                     <span>
                                         {tag.name}{" "}
                                         <span className="opacity-50">
-                                            {tag._count.items} items
+                                            {tag.items.length} items
                                         </span>
                                     </span>
                                     <Edit />

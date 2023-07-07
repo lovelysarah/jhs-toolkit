@@ -1,7 +1,7 @@
 import clsx from "clsx";
-import { json } from "@remix-run/node";
+import { json, redirect } from "@remix-run/node";
 import { Loader2, Search, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
     Form,
     Link,
@@ -60,6 +60,12 @@ export const loader = async ({ request }: LoaderArgs) => {
     // Get the current page
     const currentPage = Math.max(Number(query.get("page")) || 1);
 
+    // Handle pages that are out of range
+    if (currentPage < 1) {
+        url.searchParams.delete("page");
+        return redirect(url.toString());
+    }
+
     // Set query options for pagination
     const countOptions: Prisma.TransactionCountArgs = {};
     const options: Prisma.TransactionFindManyArgs = {
@@ -87,13 +93,23 @@ export const loader = async ({ request }: LoaderArgs) => {
             getPendingTransactions(),
         ]);
 
+    const offset = (currentPage - 1) * PER_PAGE;
+
+    if (offset > transactionCount) {
+        url.searchParams.set(
+            "page",
+            Math.ceil(transactionCount / PER_PAGE).toString()
+        );
+        return redirect(url.toString());
+    }
+
     console.log(transactions[0]);
     // Set the data
     data.pendingTx = pendingTx;
     data.users = users;
     data.transactions = transactions;
     data.transactionCount = transactionCount;
-    data.offset = (currentPage - 1) * PER_PAGE;
+    data.offset = offset;
 
     return json(data);
 };
@@ -248,9 +264,10 @@ export default function InventoryActivityRoute() {
                             ? `Displaying items [${offset + 1} - ${
                                   offset + transactions.length
                               }] out of ${transactionCount}`
-                            : `Displaying item ${
-                                  offset + 1
-                              } out of ${transactionCount}`}
+                            : `Displaying item ${Math.min(
+                                  offset + 1,
+                                  transactionCount
+                              )} out of ${transactionCount}`}
                     </span>
                 </div>
                 <Form className="basis-2/3 flex gap-2 items-center sm:justify-end my-2">

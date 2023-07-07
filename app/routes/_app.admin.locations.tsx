@@ -1,32 +1,28 @@
-import {
-    LoaderArgs,
-    LoaderFunction,
-    SerializeFrom,
-    json,
-} from "@remix-run/node";
+import type { LoaderArgs, SerializeFrom } from "@remix-run/node";
+import { json } from "@remix-run/node";
 import { Link, Outlet, useLoaderData, useNavigation } from "@remix-run/react";
-import { AllUsers, getAllUsers } from "~/data/user";
-import { Unpacked } from "~/types/utils";
-import {
-    BadgeCheck,
-    Edit,
-    Loader,
-    LucideClipboardList,
-    LucideClipboardList,
-    PackagePlus,
-    User,
-    Users,
-} from "lucide-react";
+import { getAllUsers } from "~/data/user";
+import { Edit, Loader2, Package } from "lucide-react";
 import { useState } from "react";
 import { db } from "~/utils/db.server";
-import { InventoryLocation, Item } from "@prisma/client";
+
+import type { Unpacked } from "~/types/utils";
 
 const findAllLocationsWithCounts = async () => {
     return await db.inventoryLocation.findMany({
         where: { deleted_at: { isSet: false } },
-        include: {
-            _count: {
-                select: { tags: true, items: true, transactions: true },
+        select: {
+            short_id: true,
+            id: true,
+            name: true,
+            items: {
+                where: { deleted_at: { isSet: false } },
+                select: { id: true },
+            },
+
+            tags: {
+                where: { deleted_at: { isSet: false } },
+                select: { id: true },
             },
         },
     });
@@ -47,6 +43,7 @@ export const loader = async ({ request }: LoaderArgs) => {
         locations: locations,
     };
 
+    console.log({ items: locations[0].items });
     return json(data);
 };
 
@@ -57,9 +54,13 @@ type TableRowProps = {
 };
 
 const TableRow = ({ location, onSelect, isSelected }: TableRowProps) => {
-    const { state } = useNavigation();
+    const nav = useNavigation();
 
-    const showLoadingIcon = state !== "idle" && isSelected;
+    const showLoadingIcon = nav.state !== "idle" && isSelected;
+
+    const manageLink = `/admin/items/${location.short_id}`;
+    const editLink = `/admin/locations/${location.id}`;
+
     return (
         <tr>
             <td>
@@ -74,30 +75,28 @@ const TableRow = ({ location, onSelect, isSelected }: TableRowProps) => {
                     </div>
                 </div>
             </td>
-            <td className="hidden sm:table-cell">{location._count.items}</td>
-            <td className="hidden sm:table-cell">
-                {location._count.transactions}
-            </td>
-            <td className="hidden sm:table-cell">{location._count.tags}</td>
+            <td className="hidden sm:table-cell">{location.items.length}</td>
+            <td className="hidden sm:table-cell">{32}</td>
+            <td className="hidden sm:table-cell">{location.tags.length}</td>
             <td>
                 <Link
                     onClick={onSelect}
                     preventScrollReset={true}
-                    to={`/admin/items/${location.short_id}`}
+                    to={manageLink}
                     className="btn btn-ghost">
-                    {showLoadingIcon ? (
-                        <Loader className="animate-spin" />
+                    {showLoadingIcon && nav.location.pathname === manageLink ? (
+                        <Loader2 className="animate-spin" />
                     ) : (
-                        <PackagePlus />
+                        <Package />
                     )}
                 </Link>
                 <Link
                     onClick={onSelect}
                     preventScrollReset={true}
-                    to={`/admin/locations/${location.id}`}
+                    to={editLink}
                     className="btn btn-ghost">
-                    {showLoadingIcon ? (
-                        <Loader className="animate-spin" />
+                    {showLoadingIcon && nav.location.pathname === editLink ? (
+                        <Loader2 className="animate-spin" />
                     ) : (
                         <Edit />
                     )}

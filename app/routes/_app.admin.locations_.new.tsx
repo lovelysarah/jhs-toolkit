@@ -1,18 +1,16 @@
-import { ActionFunction, redirect } from "@remix-run/node";
+import { redirect } from "@remix-run/node";
 import { Form, Link, useActionData } from "@remix-run/react";
-import {
-    CreateUserActionData,
-    ModifyLocationActionData,
-    ModifyLocationFieldErrors,
-} from "~/types/form";
 import { FormAlert } from "~/components/FormAlert";
-import { createUser } from "~/data/user";
-import { validateUserCreationForm } from "~/helper/UserFormValidator";
-import { useEffect, useState } from "react";
 import { badRequest } from "~/utils/request.server";
 import { db } from "~/utils/db.server";
 
 import { nanoid } from "nanoid";
+
+import type { ActionFunction } from "@remix-run/node";
+import type {
+    ModifyLocationActionData,
+    ModifyLocationFieldErrors,
+} from "~/types/form";
 
 export const action: ActionFunction = async ({ request }) => {
     // Get the form data
@@ -61,7 +59,6 @@ export const action: ActionFunction = async ({ request }) => {
             data: {
                 name,
                 description,
-                display_name: name,
                 short_id: nanoid(10),
             },
         });

@@ -1,10 +1,4 @@
-import { ACCOUNT_TYPE } from "@prisma/client";
-import {
-    ActionFunction,
-    LoaderArgs,
-    LoaderFunction,
-    json,
-} from "@remix-run/node";
+import { json } from "@remix-run/node";
 import {
     Form,
     Link,
@@ -16,19 +10,20 @@ import {
     useSubmit,
 } from "@remix-run/react";
 import clsx from "clsx";
-import { AlertTriangle, Trash } from "lucide-react";
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import { Archive, Loader2, Trash } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import invariant from "tiny-invariant";
-import { UserInfo, getUserInfoById, modifyUser } from "~/data/user";
 import { FormAlert } from "~/components/FormAlert";
-import { validateUserUpdateForm } from "~/helper/UserFormValidator";
-import {
-    ModifyLocationActionData,
-    CreateUserActionData,
-    FORM_VALIDATION_RESULT_TYPE,
-    ModifyLocationFieldErrors,
-} from "~/types/form";
 import { db } from "~/utils/db.server";
+
+import type { ActionFunction, LoaderArgs } from "@remix-run/node";
+import type { ModifyLocationActionData } from "~/types/form";
+import { requireAdmin } from "~/utils/session.server";
+import {
+    deleteInventoryLocation,
+    editInventoryLocation,
+} from "~/controller/inventoryLocation";
 import { badRequest } from "~/utils/request.server";
 
 export const loader = async ({ request, params }: LoaderArgs) => {
@@ -58,68 +53,17 @@ export const loader = async ({ request, params }: LoaderArgs) => {
     return json(data);
 };
 
-export const action: ActionFunction = async ({ request, params }) => {
-    invariant(params.id, "Expected user ID!");
+export const action: ActionFunction = async (args) => {
+    await requireAdmin(args.request);
 
-    const location = await db.inventoryLocation.findFirst({
-        where: { id: params.id },
-    });
-
-    if (!location) {
-        throw new Error("Something went wrong, not found");
+    switch (args.request.method) {
+        case "POST":
+            return await editInventoryLocation(args);
+        case "DELETE":
+            return await deleteInventoryLocation(args);
+        default:
+            return badRequest({ formError: "Invalid request method." });
     }
-
-    const form = await request.formData();
-    const name = form.get("name") || location.name;
-    const description = form.get("description");
-
-    console.log({ description });
-    if (typeof name !== "string" || typeof description !== "string") {
-        return badRequest<ModifyLocationActionData>({
-            fieldErrors: null,
-            fields: null,
-            formError: "Invalid form data",
-        });
-    }
-
-    const fields = { name, description };
-
-    const validateName = (name: string) => {
-        if (name.length < 5) return "Name must be at least 5 characters long";
-    };
-
-    const validateDescription = (description: string) => {
-        console.log(description.length);
-        if (description.length > 100)
-            return "Description must be less than 100 characters long";
-    };
-
-    console.log({ fields });
-    const fieldErrors: ModifyLocationFieldErrors = {
-        name: validateName(name),
-        description: validateDescription(description),
-    };
-
-    if (Object.values(fieldErrors).some(Boolean)) {
-        return badRequest<ModifyLocationActionData>({
-            formError: "Some fields are invalid",
-            fields,
-            fieldErrors,
-        });
-    }
-
-    console.log("IS valid");
-    console.log({ description });
-
-    await db.inventoryLocation.update({
-        where: { id: params.id },
-        data: {
-            name,
-            description,
-        },
-    });
-
-    return json({ success: true }, { status: 201 });
 };
 
 export default function AdminManageEditLocationRoute() {
@@ -234,24 +178,16 @@ export default function AdminManageEditLocationRoute() {
                     {location.name}
                 </h1>
 
-                {/* // BROKEN */}
                 {state !== "loading" && (
-                    <Form
-                        method="DELETE"
-                        action="/admin/action/delete-location">
+                    <Form method="DELETE">
                         <input
                             type="hidden"
                             name="id"
                             value={location.id}
                         />
-                        <button
-                            onClick={() =>
-                                confirmDelete.current &&
-                                confirmDelete.current.showModal()
-                            }
-                            className="flex gap-2 btn btn-ghost text-error-content">
-                            <Trash />
-                            Delete
+                        <button className="flex gap-2 btn btn-ghost items-center text-error-content">
+                            {state === "submitting" ? <Loader2 /> : <Archive />}
+                            Archive
                         </button>
                     </Form>
                 )}
@@ -306,12 +242,11 @@ export default function AdminManageEditLocationRoute() {
                 />
                 {isIdle && (
                     <>
-                        <button className="btn btn-ghost flex gap-2">
-                            {location._count.items} Items
-                        </button>
-                        <button className="btn btn-ghost flex gap-2">
-                            {location._count.transactions} Transactions
-                        </button>
+                        <span className="text-sm opacity-60">
+                            Contains {location._count.items} items and is
+                            referenced by {location._count.transactions}{" "}
+                            Transactions
+                        </span>
                     </>
                 )}
                 {isIdle && modified && (

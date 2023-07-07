@@ -32,7 +32,7 @@ import {
 } from "~/helper/ItemFormValidators";
 
 export const loader = async ({ request, params }: LoaderArgs) => {
-    const inventoryId = params.locationId;
+    const inventoryId = params.inventoryId;
     const data = {
         tags: await db.tag.findMany({
             where: { inventory: { short_id: inventoryId } },
@@ -44,7 +44,7 @@ export const loader = async ({ request, params }: LoaderArgs) => {
 };
 
 export const action: ActionFunction = async ({ request, params }) => {
-    const inventoryId = params.locationId;
+    const inventoryId = params.inventoryId;
     const userId = await requireUser(request);
 
     invariant(inventoryId, "Expected inventoryId to be defined");
@@ -295,7 +295,7 @@ export default function AdminCreateUserRoute() {
                     Create item
                 </button>
                 <Link
-                    to={`/admin/items/${params.locationId}`}
+                    to={`/admin/items/${params.inventoryId}`}
                     className="btn btn-error btn-outline">
                     Cancel
                 </Link>

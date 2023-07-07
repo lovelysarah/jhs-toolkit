@@ -1,5 +1,6 @@
-import type { ActionFunction, LoaderArgs } from "@remix-run/node";
-import { json, redirect } from "@remix-run/node";
+import invariant from "tiny-invariant";
+
+import { json } from "@remix-run/node";
 import {
     Form,
     Link,
@@ -12,32 +13,27 @@ import {
     useSubmit,
 } from "@remix-run/react";
 import clsx from "clsx";
-import { Trash } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import invariant from "tiny-invariant";
+import { Archive, Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
+
 import { FormAlert } from "~/components/FormAlert";
+
 import { ITEM_NOTE_MAX_LENGTH } from "~/constant";
-import {
-    validateDescription,
-    validateName,
-    validateNote,
-    validateQuantity,
-    validateTag,
-} from "~/helper/ItemFormValidators";
-import type {
-    ItemActionData,
-    ItemFieldErrors,
-    ModifyLocationActionData,
-    ModifyLocationFieldErrors,
-} from "~/types/form";
+
+import { deleteItem, editItem } from "~/controller/item";
+
 import { db } from "~/utils/db.server";
 import { badRequest } from "~/utils/request.server";
+import { requireAdmin } from "~/utils/session.server";
 
-export const loader = async ({ request, params }: LoaderArgs) => {
-    invariant(params.locationId, "Something went wrong!");
+import type { ItemActionData } from "~/types/form";
+import type { ActionFunction, LoaderArgs } from "@remix-run/node";
+
+export const loader = async ({ params }: LoaderArgs) => {
+    invariant(params.inventoryId, "Something went wrong!");
     invariant(params.itemId, "Something went wrong!");
 
-    const inventoryId = params.locationId;
+    const inventoryId = params.inventoryId;
 
     const data = {
         item: await db.item.findFirstOrThrow({
@@ -50,7 +46,12 @@ export const loader = async ({ request, params }: LoaderArgs) => {
             include: { tag: true },
         }),
         tags: await db.tag.findMany({
-            where: { inventory: { short_id: inventoryId } },
+            where: {
+                AND: [
+                    { inventory: { short_id: inventoryId } },
+                    { deleted_at: { isSet: false } },
+                ],
+            },
             orderBy: { name: "asc" },
         }),
     };
@@ -63,99 +64,19 @@ const inputClasses = (state: "idle" | "loading" | "submitting") =>
         "input-disabled animate-pulse": state !== "idle",
     });
 
-export const action: ActionFunction = async ({ request, params }) => {
-    console.log(params);
+export const action: ActionFunction = async (args) => {
+    await requireAdmin(args.request);
 
-    const inventoryId = params.locationId;
-    invariant(inventoryId, "Expected inventory ID!");
-    invariant(params.itemId, "Expected tag ID!");
-
-    const location = await db.inventoryLocation.findFirst({
-        where: { short_id: params.locationId },
-    });
-
-    const itemCurrent = await db.item.findFirst({
-        where: {
-            AND: [
-                { id: params.itemId },
-                { location: { short_id: inventoryId } },
-            ],
-        },
-        include: { tag: true },
-    });
-
-    if (!location || !itemCurrent) {
-        throw new Error("Something went wrong, not found");
-    }
-
-    const form = await request.formData();
-    const name = form.get("name") || itemCurrent.name;
-    const description = form.get("description");
-    const note = form.get("note");
-    const quantity = Number(form.get("quantity")) || 0;
-    const tag = form.get("tag") || itemCurrent.tag.id;
-
-    console.log({ name, description, note, quantity, tag });
-
-    if (
-        typeof name !== "string" ||
-        typeof description !== "string" ||
-        typeof note !== "string" ||
-        typeof quantity !== "number" ||
-        typeof tag !== "string"
-    ) {
-        return badRequest<ModifyLocationActionData>({
-            fieldErrors: null,
-            fields: null,
-            formError: "Invalid form data",
-        });
-    }
-
-    const fields = { name, description, note, quantity, tag };
-
-    const fieldErrors: ItemFieldErrors = {
-        name: validateName(name),
-        description: validateDescription(description),
-        note: validateNote(note),
-        quantity: validateQuantity(quantity),
-        tag: await validateTag(tag, inventoryId),
-    };
-
-    if (Object.values(fieldErrors).some(Boolean)) {
-        return badRequest<ItemActionData>({
-            formError: "Some fields are invalid",
-            fields,
-            fieldErrors,
-        });
-    }
-
-    console.log("VALID");
-
-    console.log({ quantity });
-    try {
-        await db.item.update({
-            where: {
-                id: params.itemId,
-            },
-            data: {
-                name,
-                description,
-                note,
-                quantity,
-                tag: { connect: { id: tag } },
-            },
-        });
-
-        return redirect(`/admin/items/${inventoryId}`, { status: 201 });
-    } catch (err) {
-        console.log(err);
-        return badRequest<ItemActionData>({
-            formError: "Server error",
-            fieldErrors,
-            fields,
-        });
+    switch (args.request.method) {
+        case "POST":
+            return await editItem(args);
+        case "DELETE":
+            return await deleteItem(args);
+        default:
+            return badRequest({ formError: "Invalid request" });
     }
 };
+
 type NameInputProps = {
     defaultName: string | undefined;
     condition: string | undefined;
@@ -284,7 +205,6 @@ export default function AdminManageEditLocationRoute() {
     const action = useActionData<ItemActionData>();
     const { state } = useNavigation();
     const params = useParams();
-
     const submit = useSubmit();
 
     if (!item) throw new Error("Item not found");
@@ -301,15 +221,11 @@ export default function AdminManageEditLocationRoute() {
     const [quantity, setQuantity] = useState(item.quantity || 0);
     const [tag, setTag] = useState(item.tag.id);
 
-    const [clientFormError, setClientFormError] = useState("");
-
     // Modal reference
-    const confirmDelete = useRef<HTMLDialogElement>(null);
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
 
         // Reset client form error
-        setClientFormError("");
         setFormSubmitted(false);
 
         // Client side validation
@@ -324,23 +240,16 @@ export default function AdminManageEditLocationRoute() {
         formData.append("tag", tag);
 
         // Submit form data
-        try {
-            submit(formData, {
-                method: "POST",
-            });
-            setFormSubmitted(true);
-            setFirstUpdate(true);
-            setModified(false);
-        } catch (err) {
-            const error = err as Error;
-            setClientFormError(error.message);
-            setFormSubmitted(false);
-        }
+        submit(formData, {
+            method: "POST",
+        });
+        setFormSubmitted(true);
+        setFirstUpdate(true);
+        setModified(false);
     };
 
     // Check if the form has been modified
     useEffect(() => {
-        console.log("MODIFIED RAN");
         if (
             name !== item.name ||
             description !== item.description ||
@@ -377,17 +286,10 @@ export default function AdminManageEditLocationRoute() {
     }, [item]);
 
     const isLoading = state === "loading";
-    const isSubmitting = state === "submitting";
     const isIdle = state === "idle";
 
     return (
         <div>
-            <dialog
-                id="confirm_delete_modal"
-                className="modal"
-                ref={confirmDelete}>
-                <h2 className="theme-text-h1">TESINTG MODEL</h2>
-            </dialog>
             <div className="flex justify-between">
                 <h1
                     className={clsx("theme-text-h3 mb-2", {
@@ -396,24 +298,17 @@ export default function AdminManageEditLocationRoute() {
                     {item.name}
                 </h1>
 
-                {/* // BROKEN */}
-                {state === "idle" && (
-                    <Form
-                        method="DELETE"
-                        action={`/admin/items/${params.locationId}/delete-item`}>
+                {state !== "loading" && (
+                    <Form method="DELETE">
                         <input
                             type="hidden"
                             name="id"
                             value={item.id}
+                            readOnly
                         />
-                        <button
-                            onClick={() =>
-                                confirmDelete.current &&
-                                confirmDelete.current.showModal()
-                            }
-                            className="flex gap-2 btn btn-ghost text-error-content">
-                            <Trash />
-                            Delete
+                        <button className="flex gap-2 btn btn-ghost items-center text-error-content">
+                            {state === "submitting" ? <Loader2 /> : <Archive />}
+                            Archive
                         </button>
                     </Form>
                 )}
@@ -497,7 +392,7 @@ export default function AdminManageEditLocationRoute() {
                     </button>
                 )}
                 <Link
-                    to={`/admin/items/${params.locationId}`}
+                    to={`/admin/items/${params.inventoryId}`}
                     className="btn btn-error btn-outline">
                     Cancel
                 </Link>
@@ -509,8 +404,8 @@ export default function AdminManageEditLocationRoute() {
 export function ErrorBoundary() {
     const error = useRouteError();
 
-    // when true, this is what used to go to `CatchBoundary`
     console.log(error);
+    // when true, this is what used to go to `CatchBoundary`
     if (isRouteErrorResponse(error)) {
         return (
             <div className="p-8 bg-error text-error-content rounded-lg">
@@ -526,9 +421,8 @@ export function ErrorBoundary() {
     // Don't forget to typecheck with your own logic.
     // Any value can be thrown, not just errors!
     let errorMessage = "Unknown error";
-    // if (isDefinitelyAnError(error)) {
-    // errorMessage = error.message;
-    // }
+
+    // if (isDefinitelyAnError(error)) errorMessage = error.message;
 
     return (
         <div className="p-8 bg-error text-error-content">

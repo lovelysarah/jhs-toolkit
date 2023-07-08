@@ -74,16 +74,15 @@ const createTransaction = async ({
             action_type: "CHECK_OUT",
             status: type === "PERMANENT" ? "COMPLETED" : "PENDING",
             note: note,
-            PERMA_user_display_name: displayName ? displayName : user.name,
-            PERMA_inventory_name: inventory.name,
-            PERMA_user_account: user.name,
+
+            guest_display_name: displayName ? displayName : null,
 
             by_guest: user.account_type === "GUEST",
             item_count: itemCount,
-
             items: items.map(({ quantity, item }) => ({
                 name: item.name,
                 quantity,
+                id: item.id,
             })) as Prisma.JsonArray,
 
             inventory: {
@@ -166,6 +165,7 @@ export const checkout = async ({
         .catch((e) => {
             const error = e as Error;
             let message = CHECKOUT_ERROR_MESSAGES.SERVER_ERROR;
+            console.log(error);
             if (error.message === "NO_STOCK")
                 message = CHECKOUT_ERROR_MESSAGES.NO_STOCK;
 

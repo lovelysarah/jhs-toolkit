@@ -86,16 +86,14 @@ model Transaction {
    
   items Json[]
   item_count Int
-  
-  PERMA_user_account      String
-  PERMA_user_display_name String
-  PERMA_inventory_name    String
+
 
   status        TransactionStatus
   action_type   InventoryActionType
   checkout_type CHECKOUT_TYPE
   note          String?
 
+  guest_display_name String?
   by_guest Boolean @default(false)
 
   created_at DateTime @default(now())

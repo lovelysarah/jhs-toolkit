@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { isTxItem } from "~/types/tx";
 import { db } from "~/utils/db.server";
 
 // Returns details about a specific transaction
@@ -22,16 +23,14 @@ export const getTransactionsFromRange = async <
         ...options,
         select: {
             id: true,
-            items: true,
             by_guest: true,
             status: true,
             action_type: true,
+            item_count: true,
             resolved_at: true,
             created_at: true,
             checkout_type: true,
-            PERMA_user_account: true,
-            PERMA_user_display_name: true,
-            PERMA_inventory_name: true,
+            guest_display_name: true,
             inventory: { select: { name: true } },
             user: { select: { name: true } },
         },
@@ -42,7 +41,33 @@ export type MultipleTransactions = Awaited<
 >;
 
 export const resolveTransactions = async (ids: string[]) => {
+    // TODO: Pass the data as args.
+    const txs = await db.transaction.findMany({
+        where: {
+            id: { in: ids },
+        },
+        select: {
+            items: true,
+            id: true,
+        },
+    });
+
     return await db.$transaction(async (tx) => {
+        for (const { items } of txs) {
+            for (const item of items) {
+                if (!isTxItem(item)) throw new Error("Invalid item type");
+
+                await tx.item.update({
+                    where: { id: item.id },
+                    data: {
+                        quantity: { increment: item.quantity },
+                    },
+                });
+
+                console.log(`Incremented ${item.name} by ${item.quantity}`);
+            }
+        }
+
         await tx.transaction.updateMany({
             where: { id: { in: ids } },
             data: {
@@ -64,16 +89,14 @@ export const getPendingTransactions = async () => {
         orderBy: { created_at: "desc" },
         select: {
             id: true,
-            items: true,
             by_guest: true,
             status: true,
             action_type: true,
+            item_count: true,
             resolved_at: true,
             created_at: true,
             checkout_type: true,
-            PERMA_user_account: true,
-            PERMA_user_display_name: true,
-            PERMA_inventory_name: true,
+            guest_display_name: true,
             inventory: { select: { name: true } },
             user: { select: { name: true } },
         },

@@ -15,11 +15,6 @@ import invariant from "tiny-invariant";
 import Modal from "react-modal";
 
 import { getUserInfoById } from "~/data/user";
-import type { AdjustedItem, ProcessedCart } from "~/utils/cart";
-import {
-    calculateInventoryAndCartQuantities,
-    isProcessedStockWithCart,
-} from "~/utils/cart";
 
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
@@ -62,6 +57,7 @@ const getPendingTxs = async (userId: string) =>
                 { user_id: userId },
                 { status: "PENDING" },
                 { checkout_type: "TEMPORARY" },
+                { inventory: { deleted_at: { isSet: false } } },
             ],
         },
         include: { inventory: true },
@@ -275,7 +271,7 @@ export default function InventoryCheckInRoute() {
                                                     ? "s"
                                                     : ""}{" "}
                                                 {tx.by_guest
-                                                    ? `by ${tx.PERMA_user_display_name}`
+                                                    ? `by ${tx.guest_display_name}`
                                                     : ""}
                                             </span>
                                             <span className="flex gap-2 items-center">
@@ -347,7 +343,7 @@ export default function InventoryCheckInRoute() {
                                     <li key={tx.id}>
                                         Return{" "}
                                         {tx.by_guest
-                                            ? `${tx.PERMA_user_display_name}'s`
+                                            ? `${tx.guest_display_name}'s`
                                             : ""}{" "}
                                         {tx.item_count} item
                                         {tx.item_count > 1 ? "s" : ""} at{" "}

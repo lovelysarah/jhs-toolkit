@@ -1,4 +1,5 @@
 import { NavLink, useNavigation } from "@remix-run/react";
+import clsx from "clsx";
 import {
     Package,
     LogIn,
@@ -8,6 +9,8 @@ import {
     PackagePlus,
     Activity,
 } from "lucide-react";
+
+import { CONTENT } from "~/config";
 
 type NavbarLink = {
     title: string;
@@ -52,13 +55,12 @@ const CustomLink = ({ link }: { link: NavbarLink }) => {
         <li key={link.href}>
             <NavLink
                 to={link.href}
-                className={({ isActive, isPending }) =>
-                    isPending
-                        ? "text-base-content flex gap-2 p-8 md:p-0"
-                        : isActive
-                        ? "text-base-content flex gap-2 p-8 md:p-0"
-                        : "text-base-content/60 flex gap-2 p-8 md:p-0"
-                }>
+                className={({ isActive, isPending }) => {
+                    return clsx("flex gap-2 p-8 md:p-0", {
+                        "text-base-content": isPending || !isActive,
+                        "text-base-content/60": !isPending && !isActive,
+                    });
+                }}>
                 {nav.location?.pathname === link.href &&
                 nav.state !== "idle" ? (
                     <Loader2 className="animate-spin" />
@@ -86,20 +88,23 @@ export default function Navbar({ isSignedIn, accountType }: NavbarProps) {
                     <NavLink
                         to="/"
                         className="text-3xl font-bold">
-                        JHS{" "}
+                        {CONTENT.HEADER.PREFIX}{" "}
                         <span className="font-normal theme-text-gradient">
-                            Toolkit
+                            {CONTENT.HEADER.NAME}
                         </span>
                     </NavLink>
                 </div>
                 <ul className="flex px-1 justify-around items-center md:gap-8">
                     {navbarLinks.map((link) => {
-                        if (
-                            (accountType !== "ADMIN" && link.admin) ||
+                        const cantViewAdminLinks =
+                            link.admin && accountType !== "ADMIN";
+
+                        const hiddenLink =
+                            cantViewAdminLinks ||
                             (!isSignedIn && link.private) ||
-                            (isSignedIn && link.href === "/auth")
-                        )
-                            return null;
+                            (isSignedIn && link.href === "/auth");
+
+                        if (hiddenLink) return null;
 
                         return (
                             <CustomLink
@@ -126,42 +131,6 @@ export default function Navbar({ isSignedIn, accountType }: NavbarProps) {
                     )}
                 </ul>
             </nav>
-            {/* <header className="navbar my-4 rounded-lg px-4"> */}
-            {/* DESKTOP */}
-            {/* <div className="flex-none hidden md:block">
-                    <ul className="flex gap-8 px-1 items-center">
-                        {navbarLinks.map((link) => {
-                            if (
-                                (accountType !== "ADMIN" && link.admin) ||
-                                (!isSignedIn && link.private) ||
-                                (isSignedIn && link.href === "/auth")
-                            )
-                                return null;
-
-                            return (
-                                <CustomLink
-                                    key={link.href}
-                                    link={link}
-                                />
-                            );
-                        })}
-                        {isSignedIn && (
-                            <li>
-                                <form
-                                    action="/logout"
-                                    method="post">
-                                    <button
-                                        type="submit"
-                                        className="flex gap-2 text-error">
-                                        <LogOut />
-                                        Sign out
-                                    </button>
-                                </form>
-                            </li>
-                        )}
-                    </ul>
-                </div>
-            </header> */}
         </>
     );
 }

@@ -5,26 +5,37 @@ import {
     useFetcher,
     useLoaderData,
     useParams,
+    useRevalidator,
 } from "@remix-run/react";
-import { useRevalidator } from "@remix-run/react";
 
 import clsx from "clsx";
+import invariant from "tiny-invariant";
 import { useEffect, useMemo, useState } from "react";
+import {
+    AlertTriangle,
+    Edit,
+    Eye,
+    Loader,
+    Loader2,
+    Search,
+} from "lucide-react";
+
 import { db } from "~/utils/db.server";
 import { requireUser } from "~/utils/session.server";
-import { Edit, Loader, Loader2 } from "lucide-react";
 import {
     calculateInventoryAndCartQuantities,
     isProcessedStockWithCart,
 } from "~/utils/cart";
 
+import { CART_ACTION, CHECKOUT_TYPE } from "~/types/inventory";
+
+import { FEATURE_FLAG } from "~/config";
+
+import type { Unpacked } from "~/types/utils";
+import type { SerializeFrom, LoaderArgs } from "@remix-run/node";
 import type { AdjustedItem, ProcessedCart } from "~/utils/cart";
 import type { FetcherWithComponents, SubmitOptions } from "@remix-run/react";
-import type { Dispatch, SetStateAction } from "react";
-import type { SerializeFrom, LoaderArgs } from "@remix-run/node";
-import invariant from "tiny-invariant";
-import { CART_ACTION, CHECKOUT_TYPE } from "~/types/inventory";
-import type { Unpacked } from "~/types/utils";
+import useDebounce from "~/hooks/useDebounce";
 
 const POLLING_RATE_MS = 10000;
 
@@ -63,7 +74,7 @@ type TagHeaderProps = {
 };
 const TagHeader = ({ tag }: TagHeaderProps) => {
     return (
-        <div className="border-t-2 border-base-200 mt-4">
+        <div className="mt-8">
             <h3 className="theme-text-h4 mt-4">{tag.name.replace("_", " ")}</h3>
             <p className="theme-text-p opacity-60">{tag.description}</p>
             <div className="flex">
@@ -85,7 +96,6 @@ const TagHeader = ({ tag }: TagHeaderProps) => {
 
 type InventoryActionProps = {
     item: SerializeFrom<AdjustedItem>;
-    selected: boolean;
     checkoutType: CHECKOUT_TYPE;
     fetcher: FetcherWithComponents<any>;
 };
@@ -95,6 +105,8 @@ const InventoryAction = ({
     checkoutType,
 }: InventoryActionProps): JSX.Element | null => {
     const { inventoryId } = useParams();
+    const [quantity, setQuantity] = useState(0);
+    const [action, setAction] = useState<CART_ACTION>();
 
     invariant(inventoryId, "Inventory ID was expected");
 
@@ -102,6 +114,8 @@ const InventoryAction = ({
         action: "/action/update-cart",
         method: "POST",
     };
+
+    const [debouncedQuantity, isPending] = useDebounce(quantity, 500);
 
     const borrowing = checkoutType === CHECKOUT_TYPE.TEMPORARY;
 
@@ -111,50 +125,88 @@ const InventoryAction = ({
         action: CART_ACTION;
         checkoutType: CHECKOUT_TYPE;
     };
+
     const submit = (data: SubmitData) => {
-        const requestData = { ...data, inventoryId, itemId: item.id };
+        const requestData = {
+            ...data,
+            inventoryId,
+            itemId: item.id,
+            quantity: quantity.toString(),
+        };
         fetcher.submit(requestData, submitOptions);
     };
 
-    return isIdle ? (
+    useEffect(() => {
+        if (quantity > 0) {
+            submit({
+                action: action || CART_ACTION.ADD,
+                checkoutType: borrowing
+                    ? CHECKOUT_TYPE.TEMPORARY
+                    : CHECKOUT_TYPE.PERMANENT,
+            });
+            setQuantity(0);
+        }
+    }, [debouncedQuantity]);
+
+    const handleAddButton = () => {
+        setAction(CART_ACTION.ADD);
+        setQuantity((prev) => prev + 1);
+    };
+
+    const handleRemoveButton = () => {
+        setAction(CART_ACTION.REMOVE);
+        setQuantity((prev) => prev + 1);
+    };
+
+    const addPending = isPending && action === CART_ACTION.ADD;
+    const removePending = isPending && action === CART_ACTION.REMOVE;
+    const adding = action === CART_ACTION.ADD;
+    const removing = action === CART_ACTION.REMOVE;
+
+    const totalCheckedOut = useMemo(() => {
+        const match = borrowing
+            ? CHECKOUT_TYPE.TEMPORARY
+            : CHECKOUT_TYPE.PERMANENT;
+        return item.checked_out
+            .filter((cartItem) => cartItem.checkout_type === match)
+            .reduce((acc, curr) => {
+                return acc + curr.quantity;
+            }, 0);
+    }, [item.checked_out, borrowing]);
+
+    return (
         <div className="flex gap-2 w-full sm:w-[50%] md:w-[30%]">
-            {item.quantity !== 0 && (
-                <button
-                    className={clsx("btn flex-1", {
-                        "btn-primary": borrowing,
-                    })}
-                    type="button"
-                    onClick={() =>
-                        submit({
-                            action: CART_ACTION.ADD,
-                            checkoutType: borrowing
-                                ? CHECKOUT_TYPE.TEMPORARY
-                                : CHECKOUT_TYPE.PERMANENT,
-                        })
-                    }>
-                    {borrowing ? "Borrow" : "Take"}
-                </button>
-            )}
-            {fetcher.state === "idle" && (
-                <>
-                    {item.checked_out.length > 0 && (
-                        <button
-                            className="btn btn-error flex-1"
-                            type="button"
-                            // Could type this better
-                            onClick={() => {
-                                submit({
-                                    action: CART_ACTION.REMOVE,
-                                    checkoutType: CHECKOUT_TYPE.TEMPORARY,
-                                });
-                            }}>
-                            Remove
-                        </button>
-                    )}
-                </>
-            )}
+            <button
+                className={clsx("btn flex-1", {
+                    "btn-primary": borrowing,
+                })}
+                type="button"
+                disabled={
+                    item.quantity === 0 ||
+                    quantity >= item.quantity ||
+                    !isIdle ||
+                    removePending
+                }
+                onClick={handleAddButton}>
+                {borrowing
+                    ? `Borrow ${adding && quantity > 0 ? quantity : ""}`
+                    : `Take ${adding && quantity > 0 ? quantity : ""}`}
+            </button>
+            <button
+                disabled={
+                    item.checked_out.length < 1 ||
+                    quantity >= totalCheckedOut ||
+                    !isIdle ||
+                    addPending
+                }
+                className="btn btn-error flex-1"
+                type="button"
+                // Could type this better
+                onClick={handleRemoveButton}>
+                Remove {removing && quantity > 0 ? quantity : ""}
+            </button>
         </div>
-    ) : null;
+    );
 };
 
 /**
@@ -163,10 +215,7 @@ const InventoryAction = ({
  */
 
 type ItemCardProps = {
-    selectHandler: Dispatch<SetStateAction<string | undefined>>;
     canModify: boolean;
-    expanded: boolean;
-    isSelected: boolean;
     checkoutType: CHECKOUT_TYPE;
     item: SerializeFrom<
         Unpacked<
@@ -176,22 +225,9 @@ type ItemCardProps = {
         >
     >;
 };
-const ItemCard = ({
-    item,
-    selectHandler,
-    canModify,
-    expanded,
-    checkoutType,
-    isSelected,
-}: ItemCardProps) => {
+const ItemCard = ({ item, canModify, checkoutType }: ItemCardProps) => {
     const inventoryAction = useFetcher();
-
-    // WIP
-    // Toggles card expansion
-    const handleExpand = () => {
-        if (expanded) return selectHandler(undefined);
-        selectHandler(item.short_id);
-    };
+    const params = useParams();
 
     const isIdle = inventoryAction.state === "idle";
 
@@ -220,31 +256,26 @@ const ItemCard = ({
      * Styles
      */
     const s_base =
-        "text-left no-animation btn flex justify-between items-center";
+        "text-left no-animation btn flex justify-between items-center cursor-default";
 
     const s_inStockAndNotInCart =
-        isIdle &&
-        !expanded &&
-        item.quantity > 0 &&
-        item.checked_out.length === 0;
+        isIdle && item.quantity > 0 && item.checked_out.length === 0;
 
-    const s_outOfStock =
-        !expanded && item.quantity === 0 && item.checked_out.length === 0;
+    const s_outOfStock = item.quantity === 0 && item.checked_out.length === 0;
 
-    const s_inCart = isIdle && !expanded && item.checked_out.length !== 0;
+    const s_inCart = isIdle && item.checked_out.length !== 0;
 
     return (
         <div className={`flex flex-col sm:flex-row sm:items-start gap-2`}>
             <div className="basis-full sm:basis-[50%] md:basis-[70%]">
                 <div
                     key={item.name}
-                    onClick={handleExpand}
                     className={clsx(s_base, {
                         "btn-warning": !isIdle,
                         "btn-ghost": s_inStockAndNotInCart,
                         "btn-error": s_outOfStock,
                         "btn-info": s_inCart,
-                        "btn-base": expanded,
+                        "cursor-default": true,
                     })}>
                     <span className="basis-[80%] md:flex-1 font-bold">
                         {nameFieldText}
@@ -256,22 +287,28 @@ const ItemCard = ({
                             <Loader2 className="animate-spin" />
                         )}
                     </span>
-                    {canModify && (
-                        <Link
-                            className="btn btn-ghost btn-sm"
-                            to={`#`}>
-                            <Edit />
-                        </Link>
+                    {FEATURE_FLAG.SUMMARY_MORE_ACTIONS && (
+                        <nav className="flex gap-2">
+                            <Link
+                                to={"#"}
+                                className="btn btn-ghost btn-sm flex gap-2 items-center">
+                                <Eye />
+                                Details
+                            </Link>
+                            {canModify && (
+                                <Link
+                                    className="btn btn-ghost btn-sm"
+                                    to={`/admin/items/${params.inventoryId}/edit-item/${item.id}`}>
+                                    <Edit />
+                                </Link>
+                            )}
+                        </nav>
                     )}
                 </div>
-                {expanded && <Outlet />}
-                {/* DEBUG */}
-                {/* <pre>{JSON.stringify({ item }, null, 2)}</pre> */}
             </div>
             <InventoryAction
                 checkoutType={checkoutType}
                 fetcher={inventoryAction}
-                selected={isSelected}
                 item={item}
             />
         </div>
@@ -391,7 +428,7 @@ export default function ShedSummaryRoute() {
     const [borrowing, setBorrowing] = useState(true);
 
     // Initialized selected item
-    const [selected, setSelected] = useState<string | undefined>("e");
+    const [showTags, setShowTags] = useState(true);
 
     //Last category assigned to headers
     let lastCategory: string | null = null;
@@ -437,53 +474,96 @@ export default function ShedSummaryRoute() {
                     lastUpdated={lastUpdated}
                 />
             )}
-            <div className="form-control sticky top-32 md:top-8 px-4 bg-base-200 rounded-lg border-base-300 border z-50">
-                <label className="label cursor-pointer">
-                    <span className="label-text">Borrowing</span>
-                    <input
-                        onChange={(e) => {
-                            setBorrowing(e.target.checked);
-                        }}
-                        type="checkbox"
-                        className={clsx("toggle", {
-                            "toggle-primary": borrowing,
-                        })}
-                        checked={borrowing}
-                    />
-                </label>
-            </div>
             {/* <pre>{JSON.stringify({ user, cart, inventory }, null, 2)}</pre> */}
-            <div className="flex flex-col gap-2 pb-8">
-                {inventory.map((item) => {
-                    let addHeader = false;
-
-                    invariant(item.tag, "Missing item tag");
-                    if (item.tag.name && lastCategory !== item.tag.name) {
-                        addHeader = true;
-                        lastCategory = item.tag.name;
-                    }
-
-                    return (
-                        <div key={item.short_id}>
-                            {addHeader && <TagHeader tag={item.tag} />}
-
-                            <ItemCard
-                                isSelected={selected === item.short_id}
-                                canModify={user.account_type === "ADMIN"}
-                                item={item}
-                                checkoutType={
-                                    borrowing
-                                        ? CHECKOUT_TYPE.TEMPORARY
-                                        : CHECKOUT_TYPE.PERMANENT
-                                }
-                                selectHandler={setSelected}
-                                expanded={
-                                    selected === item.short_id
-                                }></ItemCard>
+            {inventory.length < 1 ? (
+                <div className="alert alert-warning flex gap-2 items-center mb-4">
+                    <div>
+                        <AlertTriangle />
+                        <span>No items in inventory</span>
+                    </div>
+                </div>
+            ) : (
+                <div className="flex flex-col gap-2 mb-4">
+                    <div className="form-control sticky top-32 sm:top-0 md:top-0 px-4 py-2 z-50 bg-base-100 border-b-2 border-b-base-300">
+                        <div className="flex gap-4 items-center justify-between">
+                            <div className="flex gap-4 items-center">
+                                <label className="label cursor-pointer">
+                                    <span className="label-text mr-2">
+                                        Show categories
+                                    </span>
+                                    <input
+                                        onChange={(e) => {
+                                            setShowTags((prev) => !prev);
+                                        }}
+                                        type="checkbox"
+                                        className={clsx("toggle", {
+                                            "toggle-primary": showTags,
+                                        })}
+                                        checked={showTags}
+                                    />
+                                </label>
+                                <label className="label cursor-pointer">
+                                    <span className="label-text mr-2">
+                                        Borrowing
+                                    </span>
+                                    <input
+                                        onChange={(e) => {
+                                            setBorrowing(e.target.checked);
+                                        }}
+                                        type="checkbox"
+                                        className={clsx("toggle", {
+                                            "toggle-primary": borrowing,
+                                        })}
+                                        checked={borrowing}
+                                    />
+                                </label>
+                            </div>
+                            {FEATURE_FLAG.SUMMARY_SEARCH && (
+                                <div className="input-group justify-end">
+                                    <input
+                                        type="text"
+                                        placeholder="Search…"
+                                        className="input input-bordered"
+                                    />
+                                    <button className="btn btn-square">
+                                        <Search />
+                                    </button>
+                                </div>
+                            )}
                         </div>
-                    );
-                })}
-            </div>
+                    </div>
+                    {inventory.map((item) => {
+                        let addHeader = false;
+
+                        invariant(item.tag, "Missing item tag");
+                        if (item.tag.name && lastCategory !== item.tag.name) {
+                            addHeader = true;
+                            lastCategory = item.tag.name;
+                        }
+
+                        return (
+                            <div
+                                key={item.short_id}
+                                className={clsx({
+                                    "mt-3": !showTags,
+                                })}>
+                                {addHeader && showTags && (
+                                    <TagHeader tag={item.tag} />
+                                )}
+
+                                <ItemCard
+                                    canModify={user.account_type === "ADMIN"}
+                                    item={item}
+                                    checkoutType={
+                                        borrowing
+                                            ? CHECKOUT_TYPE.TEMPORARY
+                                            : CHECKOUT_TYPE.PERMANENT
+                                    }></ItemCard>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
         </>
     );
 }

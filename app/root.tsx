@@ -1,4 +1,3 @@
-import { cssBundleHref } from "@remix-run/css-bundle";
 import type { LinksFunction } from "@remix-run/node";
 import {
     Links,
@@ -10,7 +9,6 @@ import {
 } from "@remix-run/react";
 
 import global from "~/styles/global.css";
-import { CartProvider } from "./context/CartContext";
 
 export const links: LinksFunction = () => [{ rel: "stylesheet", href: global }];
 
@@ -30,9 +28,7 @@ export default function App() {
                 <Links />
             </head>
             <body>
-                <CartProvider>
-                    <Outlet />
-                </CartProvider>
+                <Outlet />
                 <ScrollRestoration />
                 <Scripts />
                 <LiveReload />

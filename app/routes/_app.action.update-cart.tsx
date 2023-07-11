@@ -66,6 +66,7 @@ export const action: ActionFunction = async ({ request }) => {
     const checkoutType = form.get("checkoutType");
     const itemId = form.get("itemId");
     const inventoryId = form.get("inventoryId");
+    const quantity = Number(form.get("quantity"));
 
     if (!inventoryId) return failure("Bad request", 400);
 
@@ -117,7 +118,7 @@ export const action: ActionFunction = async ({ request }) => {
                             data: {
                                 items: {
                                     create: {
-                                        quantity: 1,
+                                        quantity: quantity,
                                         checkout_type: checkoutType,
                                         item: { connect: { id: itemId } },
                                     },
@@ -143,7 +144,7 @@ export const action: ActionFunction = async ({ request }) => {
                     await db.cartItem.update({
                         where: { id: existingCartItem.id },
                         data: {
-                            quantity: { increment: 1 },
+                            quantity: { increment: quantity },
                         },
                     });
                 } catch (err) {
@@ -165,17 +166,21 @@ export const action: ActionFunction = async ({ request }) => {
                 try {
                     const item = await db.cartItem.findFirstOrThrow({
                         where: {
-                            AND: [{ cart_id: cart.id }, { item_id: itemId }],
+                            AND: [
+                                { cart_id: cart.id },
+                                { item_id: itemId },
+                                { checkout_type: checkoutType },
+                            ],
                         },
                     });
 
-                    if (item.quantity - 1 < 1) {
+                    if (item.quantity - quantity < 1) {
                         await db.cartItem.delete({ where: { id: item.id } });
                     } else {
                         await db.cartItem.update({
                             where: { id: item.id },
                             data: {
-                                quantity: { decrement: 1 },
+                                quantity: { decrement: quantity },
                             },
                         });
                     }

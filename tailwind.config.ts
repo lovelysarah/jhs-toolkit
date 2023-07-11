@@ -66,6 +66,26 @@ export default {
             "dark",
             "winter",
             {
+                jhs: {
+                    primary: "#2494bd",
+
+                    secondary: "#059669",
+
+                    accent: "#74BC66",
+
+                    neutral: "#021431",
+
+                    "base-200": "#f2f7ff",
+                    "base-100": "#FFFFFF",
+
+                    info: "#93E7FB",
+
+                    success: "#81CFD1",
+
+                    warning: "#EFD7BB",
+
+                    error: "#E58B8B",
+                },
                 mytheme: {
                     primary: "#0ea5e9",
 

@@ -1,7 +1,6 @@
 import { json } from "@remix-run/node";
 import {
     Form,
-    Link,
     useActionData,
     useLoaderData,
     useNavigation,
@@ -31,11 +30,12 @@ import type {
     LoaderArgs,
     TypedResponse,
 } from "@remix-run/node";
-import { MapPin } from "lucide-react";
+import { Check, MapPin } from "lucide-react";
 import { isTxItem } from "~/types/tx";
 import { validateNote } from "~/helper/TransactionFormValidators";
 import { resolveTransactions } from "~/data/transaction";
 import { RESOLVE_TX_STATUS } from "~/types/inventory";
+import { FEATURE_FLAG } from "~/config";
 
 const TRANSACTION_NOTE_MAX_LENGTH = 200;
 
@@ -83,7 +83,6 @@ export const loader = async ({ request, params }: LoaderArgs) => {
     invariant(userId, "Was expecting userId");
 
     data.pendingTransactions = await getPendingTxs(userId);
-    data.cartCount = 21;
     data.user = await getUserInfoById(userId);
 
     return json(data);
@@ -151,8 +150,7 @@ export const action: ActionFunction = async ({
 };
 
 export default function InventoryCheckInRoute() {
-    const { pendingTransactions, cartCount, user } =
-        useLoaderData<typeof loader>();
+    const { pendingTransactions, user } = useLoaderData<typeof loader>();
 
     const action = useActionData<TxActionData>();
 
@@ -160,16 +158,17 @@ export default function InventoryCheckInRoute() {
     const navigation = useNavigation();
     const submit = useSubmit();
 
-    const isIdle = navigation.state === "idle";
-
     useEffect(() => {
         console.log(action?.type);
-        if (action?.type === RESOLVE_TX_STATUS.SUCCESS) {
+        if (
+            action?.type === RESOLVE_TX_STATUS.SUCCESS &&
+            navigation.state === "idle"
+        ) {
             setNote("");
             setShowNoteField(false);
             setSelectedTxs([]);
         }
-    }, [action?.type]);
+    }, [action, navigation.state]);
 
     const noteFieldRef = useRef<HTMLTextAreaElement>(null);
 
@@ -177,6 +176,9 @@ export default function InventoryCheckInRoute() {
 
     const [showNoteField, setShowNoteField] = useState(false);
     const [note, setNote] = useState("");
+
+    const isIdle = navigation.state === "idle";
+    const isLoading = navigation.state === "loading";
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -240,29 +242,26 @@ export default function InventoryCheckInRoute() {
             <div className="w-full md:basis-3/5">
                 <h2
                     className={clsx(
-                        "theme-text-h3 b-8 flex gap-2 items-center"
+                        "theme-text-h3 mb-8 flex gap-2 items-center"
                     )}>
                     My Transactions
                 </h2>
-                {!pendingTransactions ? (
-                    <h3 className="theme-text-h4 rounded-lg w-full">
-                        No items in cart,{" "}
-                        <Link
-                            to="/shed/summary"
-                            className="link text-primary">
-                            click here to add some
-                        </Link>
-                        .
-                    </h3>
+                {pendingTransactions.length < 1 ? (
+                    <div className="alert alert-success">
+                        <div>
+                            <Check />
+                            <span>No pending transactions</span>
+                        </div>
+                    </div>
                 ) : (
-                    <ul className="flex flex-col gap-8">
+                    <ul className="flex flex-col gap-8 my-4">
                         {pendingTransactions.map((tx) => {
                             const timeAgo = dayjs().to(dayjs(tx.created_at));
 
                             return (
                                 <li
                                     key={tx.id}
-                                    className="shadow-lg flex flex-col py-2 px-4 rounded-lg">
+                                    className="flex flex-col p-4 bg-base-200 rounded-lg">
                                     <div className="flex flex-col gap-4">
                                         <div className="flex justify-between items-center">
                                             <span className="theme-text-h4 py-2 flex gap-2 items-center">
@@ -310,7 +309,7 @@ export default function InventoryCheckInRoute() {
                                         ) : (
                                             <button
                                                 onClick={addToSelected(tx.id)}
-                                                className="btn btn-secondary btn-outline">
+                                                className="btn btn-primary btn-outline">
                                                 Return
                                             </button>
                                         )}
@@ -324,7 +323,7 @@ export default function InventoryCheckInRoute() {
 
             <aside className="w-full md:basis-2/5 sticky top-0 md:top-6">
                 <div className="p-8">
-                    <h2 className="theme-text-h4">Information</h2>
+                    <h2 className="theme-text-h3">Information</h2>
                     <Form
                         onSubmit={handleSubmit}
                         method="POST"
@@ -338,80 +337,91 @@ export default function InventoryCheckInRoute() {
                             <span className="font-bold">{user?.name}</span>
                         </span>
                         {selectedTxs.length > 0 && (
-                            <ul className="bg-base-200 border border-base-300 rounded-lg p-2">
-                                {filteredTxs.map((tx) => (
-                                    <li key={tx.id}>
-                                        Return{" "}
-                                        {tx.by_guest
-                                            ? `${tx.guest_display_name}'s`
-                                            : ""}{" "}
-                                        {tx.item_count} item
-                                        {tx.item_count > 1 ? "s" : ""} at{" "}
-                                        {tx.inventory.name}
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
-                        {showNoteField ? (
                             <>
-                                <div className="form-control">
-                                    <label className="label">
-                                        <span className="label-text">
-                                            Transaction Note
-                                        </span>
-                                        <span className="label-text-alt">
-                                            {note.length}/
-                                            {TRANSACTION_NOTE_MAX_LENGTH}
-                                        </span>
-                                    </label>
-                                    <textarea
-                                        ref={noteFieldRef}
-                                        className="textarea textarea-primary"
-                                        placeholder="Add a note.."
-                                        name="note"
-                                        // maxLength={TRANSACTION_NOTE_MAX_LENGTH}
-                                        value={note}
-                                        onChange={(e) => {
-                                            if (
-                                                e.target.value.length <=
-                                                TRANSACTION_NOTE_MAX_LENGTH
-                                            )
-                                                setNote(e.target.value);
-
-                                            if (action?.fieldErrors?.note)
-                                                action.fieldErrors.note =
-                                                    undefined;
-                                        }}></textarea>
-                                </div>
-                                <FormAlert
-                                    variant="error"
-                                    condition={action?.fieldErrors?.note}
-                                />
-                                <button
-                                    className="btn btn-error btn-sm"
-                                    onClick={(e) => setShowNoteField(false)}>
-                                    Cancel Note
-                                </button>
+                                <span>This will return:</span>
+                                <ul className="p-2 list-disc">
+                                    {filteredTxs.map((tx) => (
+                                        <li key={tx.id}>
+                                            {tx.by_guest
+                                                ? `${tx.guest_display_name}'s`
+                                                : ""}{" "}
+                                            {tx.item_count} item
+                                            {tx.item_count > 1
+                                                ? "s"
+                                                : ""} at {tx.inventory.name}
+                                        </li>
+                                    ))}
+                                </ul>
                             </>
-                        ) : (
-                            <button
-                                className="btn btn-secondary btn-sm"
-                                type="button"
-                                onClick={(e) => {
-                                    setShowNoteField(true);
-                                }}>
-                                Add a note
-                            </button>
                         )}
-                        {isIdle && selectedTxs && selectedTxs.length > 0 && (
-                            <button
-                                className={clsx("btn btn-primary", {
-                                    "btn-warning": submitting,
-                                    "btn-disabled": cartCount < 1,
-                                })}>
-                                {submitting ? "Submitting..." : "Submit"}
-                            </button>
-                        )}
+                        {FEATURE_FLAG.CHECKIN_NOTE &&
+                            (showNoteField ? (
+                                <>
+                                    <div className="form-control">
+                                        <label className="label">
+                                            <span className="label-text">
+                                                Transaction Note
+                                            </span>
+                                            <span className="label-text-alt">
+                                                {note.length}/
+                                                {TRANSACTION_NOTE_MAX_LENGTH}
+                                            </span>
+                                        </label>
+                                        <textarea
+                                            ref={noteFieldRef}
+                                            className="textarea textarea-primary"
+                                            placeholder="Add a note.."
+                                            name="note"
+                                            // maxLength={TRANSACTION_NOTE_MAX_LENGTH}
+                                            value={note}
+                                            onChange={(e) => {
+                                                if (
+                                                    e.target.value.length <=
+                                                    TRANSACTION_NOTE_MAX_LENGTH
+                                                )
+                                                    setNote(e.target.value);
+
+                                                if (action?.fieldErrors?.note)
+                                                    action.fieldErrors.note =
+                                                        undefined;
+                                            }}></textarea>
+                                    </div>
+                                    <FormAlert
+                                        variant="error"
+                                        condition={action?.fieldErrors?.note}
+                                    />
+                                    <button
+                                        className="btn btn-error btn-sm"
+                                        onClick={(e) =>
+                                            setShowNoteField(false)
+                                        }>
+                                        Cancel Note
+                                    </button>
+                                </>
+                            ) : (
+                                <button
+                                    className="btn btn-secondary btn-sm"
+                                    type="button"
+                                    onClick={(e) => {
+                                        setShowNoteField(true);
+                                    }}>
+                                    Add a note
+                                </button>
+                            ))}
+                        <button
+                            disabled={
+                                navigation.state !== "idle" ||
+                                selectedTxs.length < 1
+                            }
+                            className={clsx("btn btn-primary", {
+                                "btn-warning": submitting,
+                            })}>
+                            {isIdle
+                                ? "Submit"
+                                : isLoading
+                                ? "Loading.."
+                                : "Submitting.."}
+                        </button>
                     </Form>
                 </div>
             </aside>

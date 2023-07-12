@@ -1,9 +1,12 @@
-import { LoaderFunction, json } from "@remix-run/node";
 import { Link, Outlet, useLoaderData, useNavigation } from "@remix-run/react";
-import { AllUsers, getAllUsers } from "~/data/user";
-import { Unpacked } from "~/types/utils";
+import { json } from "@remix-run/node";
+import { getAllUsers } from "~/data/user";
 import { BadgeCheck, Edit, Loader, User, Users } from "lucide-react";
 import { useState } from "react";
+
+import type { AllUsers } from "~/data/user";
+import type { LoaderFunction } from "@remix-run/node";
+import type { Unpacked } from "~/types/utils";
 
 type LoaderData = {
     users: AllUsers;

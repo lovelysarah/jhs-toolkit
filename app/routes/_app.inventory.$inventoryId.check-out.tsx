@@ -2,11 +2,13 @@ import { json } from "@remix-run/node";
 import {
     Form,
     Link,
+    isRouteErrorResponse,
     useActionData,
     useLoaderData,
     useNavigation,
     useParams,
     useRevalidator,
+    useRouteError,
     useSubmit,
 } from "@remix-run/react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -26,7 +28,7 @@ import { getUserId } from "~/utils/session.server";
 
 import { FormAlert } from "~/components/FormAlert";
 
-import { Clock, Info } from "lucide-react";
+import { AlertTriangle, Clock, Info } from "lucide-react";
 import { checkout } from "~/data/inventory";
 import {
     validateDisplayName,
@@ -40,6 +42,10 @@ import type {
     TypedResponse,
 } from "@remix-run/node";
 import { CREATE_TX_STATUS } from "~/types/inventory";
+import {
+    ErrorResponseMessage,
+    UnknownErrorMessage,
+} from "~/components/ErrorMessage";
 
 const TRANSACTION_NOTE_MAX_LENGTH = 200;
 
@@ -274,8 +280,8 @@ export default function InventoryCheckoutRoute() {
     }, [showNoteField, noteFieldRef.current]);
 
     return (
-        <section className="flex flex-col-reverse md:flex-row gap-12 items-start">
-            <div className="w-full md:basis-4/6">
+        <section className="flex flex-col-reverse md:flex-row gap-12 items-start py-8">
+            <div className="w-full md:basis-3/5">
                 <h2 className={clsx("theme-text-h3 mb-8")}>
                     {action?.type === CREATE_TX_STATUS.SUCCESS && isIdle
                         ? `${action.message}`
@@ -297,20 +303,25 @@ export default function InventoryCheckoutRoute() {
                             </ul>
                         </>
                     ) : (
-                        <h3 className="theme-text-h4 rounded-lg w-full">
-                            No items in cart,{" "}
-                            <Link
-                                to={`/${params.inventoryId}/summary`}
-                                className="link text-primary">
-                                click here to add some
-                            </Link>
-                        </h3>
+                        <div className="alert alert-warning">
+                            <div>
+                                <AlertTriangle />
+                                <span>
+                                    No items in cart,{" "}
+                                    <Link
+                                        to={`/inventory/${params.inventoryId}/summary`}
+                                        className="link">
+                                        click here to add some.
+                                    </Link>
+                                </span>
+                            </div>
+                        </div>
                     )
                 ) : (
                     <ul className="flex flex-col gap-4">
                         {sortedItems.noteFirst.map((cartItem) => {
                             const classes =
-                                "shadow-md flex flex-col py-2 px-4 rounded-lg";
+                                "bg-base-200 flex flex-col py-2 px-4 rounded-lg";
                             return (
                                 <li
                                     key={`${cartItem.item.id}-${cartItem.checkout_type}`}
@@ -344,7 +355,7 @@ export default function InventoryCheckoutRoute() {
                 )}
             </div>
 
-            <aside className="w-full md:basis-2/6 sticky top-0 md:top-6 border p-8 rounded-lg border-base-300 bg-base-100">
+            <aside className="w-full md:basis-2/5 sticky top-0 md:top-6 p-8 bg-base-100">
                 <h2 className="theme-text-h3">Information</h2>
                 <Form
                     onSubmit={handleSubmit}
@@ -431,7 +442,7 @@ export default function InventoryCheckoutRoute() {
                     )}
                     <button
                         className={clsx("btn", {
-                            "btn-secondary": !showNoteField,
+                            "btn-ghost": !showNoteField,
                             "btn-error": showNoteField,
                             "btn-disabled":
                                 !isIdle || !cart || cart.items.length === 0,
@@ -460,4 +471,16 @@ export default function InventoryCheckoutRoute() {
             </aside>
         </section>
     );
+}
+
+export function ErrorBoundary() {
+    const error = useRouteError();
+
+    if (isRouteErrorResponse(error)) {
+        return <ErrorResponseMessage error={error} />;
+    }
+
+    let errorMessage = "Couldn't load the check out component";
+
+    return <UnknownErrorMessage message={errorMessage} />;
 }

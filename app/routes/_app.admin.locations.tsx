@@ -11,9 +11,12 @@ import type { Unpacked } from "~/types/utils";
 const findAllLocationsWithCounts = async () => {
     return await db.inventoryLocation.findMany({
         where: { deleted_at: { isSet: false } },
+        orderBy: { transactions: { _count: "desc" } },
         select: {
+            _count: { select: { transactions: true } },
             short_id: true,
             id: true,
+
             name: true,
             items: {
                 where: { deleted_at: { isSet: false } },
@@ -76,7 +79,9 @@ const TableRow = ({ location, onSelect, isSelected }: TableRowProps) => {
                 </div>
             </td>
             <td className="hidden sm:table-cell">{location.items.length}</td>
-            <td className="hidden sm:table-cell">{32}</td>
+            <td className="hidden sm:table-cell">
+                {location._count.transactions}
+            </td>
             <td className="hidden sm:table-cell">{location.tags.length}</td>
             <td>
                 <Link

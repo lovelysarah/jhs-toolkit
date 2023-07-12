@@ -422,7 +422,6 @@ export function ErrorBoundary() {
     const error = useRouteError();
 
     // when true, this is what used to go to `CatchBoundary`
-    console.log(error);
     if (isRouteErrorResponse(error)) {
         return (
             <div className="p-8 bg-error text-error-content rounded-lg">
@@ -445,7 +444,7 @@ export function ErrorBoundary() {
     return (
         <div className="p-8 bg-error text-error-content">
             <h1 className="theme-text-h2">Uh oh ...</h1>
-            <p>Something went wrong.</p>
+            <p>Something went wrondwdwdg.</p>
             <pre>{errorMessage}</pre>
         </div>
     );

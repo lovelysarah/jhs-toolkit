@@ -7,12 +7,12 @@ import {
     useNavigation,
     useParams,
 } from "@remix-run/react";
-import { getAllUsers } from "~/data/user";
 import { Loader2, MapPin } from "lucide-react";
 import { db } from "~/utils/db.server";
 
 import type { LoaderArgs } from "@remix-run/node";
 import { useState } from "react";
+import { requireUser } from "~/utils/session.server";
 
 const findAllLocationsWithCounts = async () => {
     return await db.inventoryLocation.findMany({
@@ -31,21 +31,17 @@ type LocationsWithCount = Awaited<
 >;
 
 export const loader = async ({ request, params }: LoaderArgs) => {
-    const users = await getAllUsers();
-    const items = await db.item.findMany({});
+    await requireUser(request);
     const locations: LocationsWithCount = await findAllLocationsWithCounts();
 
     const data = {
-        selected: params.locationId || null,
-        users: users,
-        items: items,
         locations: locations,
     };
 
     return json(data);
 };
 
-export default function AdminItemRoute() {
+export default function InventorySelectRoute() {
     const { locations } = useLoaderData<typeof loader>();
 
     const [navigatingTo, setNavigatingTo] = useState("");
@@ -79,8 +75,7 @@ export default function AdminItemRoute() {
                     }}>
                     <option
                         disabled
-                        value={"DEFAULT"}
-                        selected>
+                        value={"DEFAULT"}>
                         Select one
                     </option>
                     {locations.map((location) => {
@@ -95,7 +90,7 @@ export default function AdminItemRoute() {
                 </select>
             </div>
             <div className="w-full z-50 hidden md:block">
-                <nav className="tabs tabs-boxed flex gap-1 my-4 bg-base-200/50 backdrop-blur-sm">
+                <nav className="tabs tabs-boxed flex gap-1 my-4 bg-base-100 backdrop-blur-sm">
                     {locations.map((location) => {
                         const link = `/inventory/${location.short_id}`;
                         return (

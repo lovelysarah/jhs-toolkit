@@ -165,7 +165,6 @@ export const checkout = async ({
         .catch((e) => {
             const error = e as Error;
             let message = CHECKOUT_ERROR_MESSAGES.SERVER_ERROR;
-            console.log(error);
             if (error.message === "NO_STOCK")
                 message = CHECKOUT_ERROR_MESSAGES.NO_STOCK;
 

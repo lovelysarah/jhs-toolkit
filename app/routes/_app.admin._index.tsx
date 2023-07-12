@@ -1,5 +1,5 @@
 import { Link } from "@remix-run/react";
-import { ClipboardList, MapPin, Package2, UserCog } from "lucide-react";
+import { MapPin, Package2, UserCog } from "lucide-react";
 
 export default function AdminIndexRoute() {
     return (
@@ -26,14 +26,6 @@ export default function AdminIndexRoute() {
                     to={"/admin/items"}>
                     <Package2 />
                     Manage items
-                </Link>
-            </li>
-            <li>
-                <Link
-                    className="btn btn-ghost flex gap-2"
-                    to={"/admin/transactions"}>
-                    <ClipboardList />
-                    Manage transactions
                 </Link>
             </li>
         </ul>

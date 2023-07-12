@@ -404,7 +404,6 @@ export default function AdminManageEditLocationRoute() {
 export function ErrorBoundary() {
     const error = useRouteError();
 
-    console.log(error);
     // when true, this is what used to go to `CatchBoundary`
     if (isRouteErrorResponse(error)) {
         return (

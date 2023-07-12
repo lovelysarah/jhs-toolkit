@@ -1,32 +1,19 @@
-import { LoaderArgs, LoaderFunction, json } from "@remix-run/node";
+import { json } from "@remix-run/node";
 import {
-    Link,
     NavLink,
     Outlet,
     useLoaderData,
     useNavigation,
 } from "@remix-run/react";
-import { AllUsers, getAllUsers } from "~/data/user";
-import { Unpacked } from "~/types/utils";
-import {
-    BadgeCheck,
-    Edit,
-    List,
-    Loader,
-    Loader2,
-    MapPin,
-    PackagePlus,
-    Pin,
-    User,
-    Users,
-} from "lucide-react";
-import { useState } from "react";
+import { Loader2, MapPin } from "lucide-react";
 import { db } from "~/utils/db.server";
-import { InventoryLocation, Item } from "@prisma/client";
+
+import type { LoaderArgs } from "@remix-run/node";
 
 const findAllLocationsWithCounts = async () => {
     return await db.inventoryLocation.findMany({
         where: { deleted_at: { isSet: false } },
+        orderBy: { name: "asc" },
         include: {
             _count: {
                 select: { items: true },
@@ -39,30 +26,19 @@ type LocationsWithCount = Awaited<
     ReturnType<typeof findAllLocationsWithCounts>
 >;
 
-export const loader = async ({ request, params }: LoaderArgs) => {
-    const users = await getAllUsers();
-    const items = await db.item.findMany({});
+export const loader = async ({ params }: LoaderArgs) => {
     const locations: LocationsWithCount = await findAllLocationsWithCounts();
 
     const data = {
-        selected: params.inventoryId || null,
-        users: users,
-        items: items,
         locations: locations,
     };
 
     return json(data);
 };
 
-export default function AdminItemRoute() {
+export default function AdminRouteSelectRoute() {
     const { locations } = useLoaderData<typeof loader>();
 
-    const smallList = ["Name"];
-    const largeList = ["Name", "items", "Location"];
-
-    const [selected, setSelected] = useState<string | null>(null);
-    console.log({ locations });
-    console.log({ selected });
     const nav = useNavigation();
 
     return (
@@ -75,7 +51,7 @@ export default function AdminItemRoute() {
                             <NavLink
                                 to={link}
                                 key={location.id}
-                                className={({ isActive, isPending }) => {
+                                className={({ isActive }) => {
                                     return isActive
                                         ? "tab tab-active flex gap-2 items-center"
                                         : "tab flex gap-2 items-center";

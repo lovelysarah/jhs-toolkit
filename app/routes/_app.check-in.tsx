@@ -1,10 +1,12 @@
 import { json } from "@remix-run/node";
 import {
     Form,
+    isRouteErrorResponse,
     useActionData,
     useLoaderData,
     useNavigation,
     useRevalidator,
+    useRouteError,
     useSubmit,
 } from "@remix-run/react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -20,7 +22,7 @@ import relativeTime from "dayjs/plugin/relativeTime";
 
 import { db } from "~/utils/db.server";
 import { badRequest } from "~/utils/request.server";
-import { getUserId } from "~/utils/session.server";
+import { getUserId, requireUser } from "~/utils/session.server";
 
 import { FormAlert } from "~/components/FormAlert";
 
@@ -36,6 +38,10 @@ import { validateNote } from "~/helper/TransactionFormValidators";
 import { resolveTransactions } from "~/data/transaction";
 import { RESOLVE_TX_STATUS } from "~/types/inventory";
 import { FEATURE_FLAG } from "~/config";
+import {
+    ErrorResponseMessage,
+    UnknownErrorMessage,
+} from "~/components/ErrorMessage";
 
 const TRANSACTION_NOTE_MAX_LENGTH = 200;
 
@@ -65,9 +71,9 @@ const getPendingTxs = async (userId: string) =>
 
 type PendingTransactions = Awaited<ReturnType<typeof getPendingTxs>>;
 
-export const loader = async ({ request, params }: LoaderArgs) => {
+export const loader = async ({ request }: LoaderArgs) => {
     const data = {} as LoaderData;
-    const userId = await getUserId(request);
+    const userId = await requireUser(request);
 
     // Get the query parameters
     const url = new URL(request.url);
@@ -79,8 +85,6 @@ export const loader = async ({ request, params }: LoaderArgs) => {
     if (historyRequest) {
         console.log(historyRequest);
     }
-
-    invariant(userId, "Was expecting userId");
 
     data.pendingTransactions = await getPendingTxs(userId);
     data.user = await getUserInfoById(userId);
@@ -426,5 +430,21 @@ export default function InventoryCheckInRoute() {
                 </div>
             </aside>
         </section>
+    );
+}
+
+export function ErrorBoundary() {
+    const error = useRouteError();
+
+    if (isRouteErrorResponse(error)) {
+        return <ErrorResponseMessage error={error} />;
+    }
+
+    let errorMessage = "Couldn't load the check-in component";
+
+    return (
+        <div className="m-4">
+            <UnknownErrorMessage message={errorMessage} />
+        </div>
     );
 }

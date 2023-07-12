@@ -12,10 +12,12 @@ import {
     Link,
     NavLink,
     Outlet,
+    isRouteErrorResponse,
     useLoaderData,
     useLocation,
     useNavigation,
     useParams,
+    useRouteError,
 } from "@remix-run/react";
 import { requireUser } from "~/utils/session.server";
 import { db } from "~/utils/db.server";
@@ -35,6 +37,10 @@ import { getAction } from "~/utils/txText";
 import { isTxItem } from "~/types/tx";
 
 import { FEATURE_FLAG } from "~/config";
+import {
+    ErrorResponseMessage,
+    UnknownErrorMessage,
+} from "~/components/ErrorMessage";
 
 dayjs.extend(relativeTime);
 
@@ -78,7 +84,7 @@ export const loader = async ({ request, params }: LoaderArgs) => {
         ? await getRecentTxs(inventoryId)
         : null;
 
-    const location = await db.inventoryLocation.findUniqueOrThrow({
+    const location = await db.inventoryLocation.findUnique({
         where: { short_id: inventoryId },
         select: {
             name: true,
@@ -87,6 +93,7 @@ export const loader = async ({ request, params }: LoaderArgs) => {
             _count: { select: { transactions: true } },
         },
     });
+    if (!location) throw new Response("Inventory not found", { status: 404 });
 
     const data = {
         cartCount: cart ? cart._count.items : 0,
@@ -400,3 +407,15 @@ const InventoryStats = ({
         </>
     );
 };
+
+export function ErrorBoundary() {
+    const error = useRouteError();
+
+    if (isRouteErrorResponse(error)) {
+        return <ErrorResponseMessage error={error} />;
+    }
+
+    let errorMessage = "Couldn't load the inventory component";
+
+    return <UnknownErrorMessage message={errorMessage} />;
+}

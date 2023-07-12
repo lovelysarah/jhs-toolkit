@@ -31,7 +31,7 @@ const Pagination = ({
                     <button
                         disabled
                         className="btn btn-disabled">
-                        Previous Page
+                        Previous
                     </button>
                 )}
                 {currentPage > 1 && (
@@ -44,7 +44,7 @@ const Pagination = ({
                 )}
                 <span className="btn btn-active">Page {currentPage}</span>
                 {currentPage >= totalPages && (
-                    <button className="btn btn-disabled">Next Page</button>
+                    <button className="btn btn-disabled">Next</button>
                 )}
                 {currentPage < totalPages && (
                     <Link

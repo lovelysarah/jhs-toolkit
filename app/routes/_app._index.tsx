@@ -11,7 +11,9 @@ export default function Index() {
                 Announcement
             </h1>
             <div className="bg-base-200 rounded-box px-4 py-2">
-                <h2 className="theme-text-h3">Welcome to the team!</h2>
+                <h2 className="theme-text-h3">
+                    Welcome to the new inventory system!
+                </h2>
                 <p className="line-clamp-2">
                     Lorem ipsum dolor sit amet consectetur adipisicing elit.
                     Corrupti at eum quidem quod necessitatibus dolorem excepturi
@@ -20,6 +22,7 @@ export default function Index() {
                     sint sapiente impedit quam? Nobis consequatur illum
                     blanditiis.
                 </p>
+                <button className="btn btn-flex my-4">Learn more..</button>
             </div>
         </div>
     );

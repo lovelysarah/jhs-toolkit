@@ -5,8 +5,7 @@ type Config = {
             NAME: string;
         };
         FOOTER: {
-            COMPANY_NAME: string;
-            MOTTO?: string;
+            LOGO_ALT_TEXT: string;
         };
     };
     FEATURE_FLAG: {
@@ -23,7 +22,7 @@ export const CONTENT = {
         NAME: "Storage",
     },
     FOOTER: {
-        COMPANY_NAME: "John Howard Society of southeastern New Brunswick Inc.",
+        LOGO_ALT_TEXT: "Generic brand Inc.",
     },
 } satisfies Config["CONTENT"];
 

@@ -77,7 +77,6 @@ const TableRow = ({ item, onSelect, isSelected }: TableRowProps) => {
             <td>
                 <Link
                     onClick={onSelect}
-                    preventScrollReset={true}
                     to={`/admin/items/${item.location.short_id}/edit-item/${item.id}`}
                     className="btn btn-ghost btn-sm">
                     {showLoadingIcon ? (

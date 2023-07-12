@@ -1,15 +1,21 @@
+import { json, redirect } from "@remix-run/node";
 import {
-    ActionFunction,
-    LoaderFunction,
-    json,
-    redirect,
-} from "@remix-run/node";
-import { useActionData, useSearchParams } from "@remix-run/react";
+    isRouteErrorResponse,
+    useActionData,
+    useRouteError,
+    useSearchParams,
+} from "@remix-run/react";
 import { LogIn } from "lucide-react";
+import {
+    ErrorResponseMessage,
+    UnknownErrorMessage,
+} from "~/components/ErrorMessage";
 import { FormAlert } from "~/components/FormAlert";
 import { VALID_URLS } from "~/constant";
-import { FieldErrors, FormActionData } from "~/types/form";
 import { createUserSession, getUserId, login } from "~/utils/session.server";
+
+import type { FieldErrors, FormActionData } from "~/types/form";
+import type { ActionFunction, LoaderFunction } from "@remix-run/node";
 
 type SignInFields = {
     username: string;
@@ -22,7 +28,12 @@ type SignInActionData = FormActionData<SignInFieldErrors, SignInFields>;
 const badRequest = (data: SignInActionData) => json(data, { status: 400 });
 
 function validateUrl(url: unknown) {
-    if (typeof url !== "string" || !VALID_URLS.includes(url)) return "/";
+    if (typeof url !== "string") return "/";
+
+    const validUrls = VALID_URLS.filter((validURL) => url.startsWith(validURL));
+
+    console.log({ validUrls });
+    if (validUrls.length < 1) return "/";
 
     return url;
 }
@@ -107,6 +118,22 @@ export default function AuthRoute() {
                     </button>
                 </form>
             </div>
+        </div>
+    );
+}
+
+export function ErrorBoundary() {
+    const error = useRouteError();
+
+    if (isRouteErrorResponse(error)) {
+        return <ErrorResponseMessage error={error} />;
+    }
+
+    let errorMessage = "Couldn't load the authentication component";
+
+    return (
+        <div className="m-4">
+            <UnknownErrorMessage message={errorMessage} />
         </div>
     );
 }

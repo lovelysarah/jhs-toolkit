@@ -1,11 +1,12 @@
 import { json } from "@remix-run/node";
 import {
     Link,
-    Outlet,
+    isRouteErrorResponse,
     useFetcher,
     useLoaderData,
     useParams,
     useRevalidator,
+    useRouteError,
 } from "@remix-run/react";
 
 import clsx from "clsx";
@@ -36,6 +37,10 @@ import type { SerializeFrom, LoaderArgs } from "@remix-run/node";
 import type { AdjustedItem, ProcessedCart } from "~/utils/cart";
 import type { FetcherWithComponents, SubmitOptions } from "@remix-run/react";
 import useDebounce from "~/hooks/useDebounce";
+import {
+    ErrorResponseMessage,
+    UnknownErrorMessage,
+} from "~/components/ErrorMessage";
 
 const POLLING_RATE_MS = 10000;
 
@@ -566,4 +571,16 @@ export default function ShedSummaryRoute() {
             )}
         </>
     );
+}
+
+export function ErrorBoundary() {
+    const error = useRouteError();
+
+    if (isRouteErrorResponse(error)) {
+        return <ErrorResponseMessage error={error} />;
+    }
+
+    let errorMessage = "Couldn't load the summary component";
+
+    return <UnknownErrorMessage message={errorMessage} />;
 }

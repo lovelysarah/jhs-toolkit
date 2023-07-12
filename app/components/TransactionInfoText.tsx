@@ -11,14 +11,12 @@ dayjs.extend(relativeTime);
 
 export type TransactionInfoTextProps = {
     item: Unpacked<MultipleTransactions>;
-    isSelected: boolean;
     detailsLink: string;
 };
 
 export const TransactionTableRow = ({
     item,
     detailsLink,
-    isSelected,
 }: TransactionInfoTextProps) => {
     return (
         <>
@@ -27,7 +25,6 @@ export const TransactionTableRow = ({
                 <td
                     className={clsx({
                         "whitespace-normal": true,
-                        "font-bold": isSelected,
                     })}
                     id={item.id}>
                     <div>
@@ -66,15 +63,13 @@ export const TransactionTableRow = ({
                             )}
                     </div>
                 </td>
-                {!isSelected && (
-                    <td>
-                        <Link
-                            to={`?${detailsLink}`}
-                            className="btn btn-ghost btn-sm self-end">
-                            View details
-                        </Link>
-                    </td>
-                )}
+                <td>
+                    <Link
+                        to={`?${detailsLink}`}
+                        className="btn btn-ghost btn-sm self-end">
+                        View details
+                    </Link>
+                </td>
             </tr>
             <tr className="hidden sm:table-row md:hidden">
                 <td>

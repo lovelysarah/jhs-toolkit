@@ -35,7 +35,12 @@ export const loader = async ({ request, params }: LoaderArgs) => {
     const inventoryId = params.inventoryId;
     const data = {
         tags: await db.tag.findMany({
-            where: { inventory: { short_id: inventoryId } },
+            where: {
+                AND: [
+                    { inventory: { short_id: inventoryId } },
+                    { deleted_at: { isSet: false } },
+                ],
+            },
             orderBy: { name: "asc" },
         }),
     };

@@ -159,11 +159,11 @@ export async function getUser(request: Request) {
 
     try {
         const user = await db.user.findFirst({
-            where: { AND: [{ id: userId }, { deleted_at: { isSet: false } }] },
+            where: {
+                AND: [{ id: userId }, { deleted_at: { isSet: false } }],
+            },
             select: { id: true, username: true, account_type: true },
         });
-
-        if (!user) throw new Error("User not found");
 
         return user;
     } catch {

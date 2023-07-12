@@ -5,9 +5,10 @@ import { useEffect, useState } from "react";
 import {
     Form,
     Link,
+    isRouteErrorResponse,
     useLoaderData,
     useNavigation,
-    useParams,
+    useRouteError,
     useSearchParams,
 } from "@remix-run/react";
 
@@ -15,29 +16,29 @@ import Pagination from "~/components/Pagination";
 import { TransactionTableRow } from "~/components/TransactionInfoText";
 
 import { db } from "~/utils/db.server";
+import {
+    getPendingTransactions,
+    getTransactionsFromRange,
+} from "~/data/transaction";
+import { getUsersWithATransaction } from "~/data/user";
+import {
+    ErrorResponseMessage,
+    UnknownErrorMessage,
+} from "~/components/ErrorMessage";
 
 import type { UsersWithATransaction } from "~/data/user";
 import type { LoaderArgs } from "@remix-run/node";
 import type { Prisma } from "@prisma/client";
-import {
-    getPendingTransactions,
-    getTransactionDetails,
-    getTransactionsFromRange,
-} from "~/data/transaction";
 import type {
     MultipleTransactions,
     PendingTransactions,
-    TransactionDetails,
 } from "~/data/transaction";
-
-import { getUsersWithATransaction } from "~/data/user";
 
 // How many transactions to show per page
 const PER_PAGE = 7;
 
 type LoaderData = {
     users: UsersWithATransaction;
-    transactionDetails: TransactionDetails;
     transactions: MultipleTransactions;
     transactionCount: number;
     pendingTx: PendingTransactions;
@@ -49,13 +50,6 @@ export const loader = async ({ request }: LoaderArgs) => {
     // Get the query parameters
     const url = new URL(request.url);
     const query = url.searchParams;
-
-    // Get details about the transaction
-    const transactionId = query.get("transaction");
-
-    if (transactionId) {
-        data.transactionDetails = await getTransactionDetails(transactionId);
-    }
 
     // Get the current page
     const currentPage = Math.max(Number(query.get("page")) || 1);
@@ -103,7 +97,6 @@ export const loader = async ({ request }: LoaderArgs) => {
         return redirect(url.toString());
     }
 
-    console.log(transactions[0]);
     // Set the data
     data.pendingTx = pendingTx;
     data.users = users;
@@ -114,120 +107,11 @@ export const loader = async ({ request }: LoaderArgs) => {
     return json(data);
 };
 
-const ShowDetails = ({ data }: { data: TransactionDetails }) => {
-    console.log({ data });
-    const uniqueItems = [...new Set(data.item_ids)];
-    const splitInTwo = uniqueItems.length >= 10;
-
-    // Conditional
-    const half = Math.ceil(uniqueItems.length / 2);
-    const itemsFirstHalf = uniqueItems.slice(0, half);
-    const itemsSecondHalf = uniqueItems.slice(half);
-    return (
-        <div className={clsx({})}>
-            <div className="flex md:flex-row md:justify-between md:items-center">
-                <h2 className="theme-text-h3">Transaction Details</h2>
-                <Link
-                    className="btn btn-error btn-outline"
-                    to="/shed/activity">
-                    Close
-                </Link>
-            </div>
-            <div className="flex">
-                <div className="flex-1">
-                    <h4 className="theme-text-h4">
-                        {data.item_ids.length} Items
-                    </h4>
-                    <div
-                        className={clsx({
-                            flex: splitInTwo,
-                            "flex flex-col": !splitInTwo,
-                        })}>
-                        {!splitInTwo ? (
-                            uniqueItems.map((item, index) => {
-                                if (data.count)
-                                    return (
-                                        <span key={`${item}-${index}`}>
-                                            {data.count[item]} {item}
-                                        </span>
-                                    );
-                                return null;
-                            })
-                        ) : (
-                            <>
-                                <div className="flex-1 flex flex-col">
-                                    {/* // Add custom key */}
-                                    {itemsFirstHalf.map((item, index) => {
-                                        if (data.count)
-                                            return (
-                                                <span key={`${item}-${index}`}>
-                                                    {data.count[item]} {item}
-                                                </span>
-                                            );
-                                        return null;
-                                    })}
-                                </div>
-                                <div className="flex-1 flex flex-col">
-                                    {/* // Add custom key */}
-                                    {itemsSecondHalf.map((item, index) => {
-                                        if (data.count)
-                                            return (
-                                                <span key={`${item}-${index}`}>
-                                                    {data.count[item]} {item}
-                                                </span>
-                                            );
-                                        return null;
-                                    })}
-                                </div>
-                            </>
-                        )}
-                    </div>
-                </div>
-                <div className="flex-1">
-                    <h4 className="theme-text-h4">User</h4>
-                    <span>
-                        {data.display_name} [{data.user.name}]
-                    </span>
-                    <h4 className="theme-text-h4">Date & Time</h4>
-                    <span>
-                        {data.created_at.toLocaleDateString()} at{" "}
-                        {data.created_at.toLocaleTimeString()}
-                    </span>
-                    <h4 className="theme-text-h4">Action</h4>
-                    <span>
-                        {data.action_type === "CHECK_OUT"
-                            ? "Check out"
-                            : "Check in"}
-                    </span>
-
-                    {data.note && (
-                        <>
-                            <h4 className="theme-text-h4">Note</h4>
-                            <p className="opacity-70">{data.note}</p>
-                        </>
-                    )}
-                </div>
-            </div>
-            <span className="text-sm opacity-50">ID: {data.id}</span>
-            <div className="divider"></div>
-        </div>
-    );
-};
 export default function InventoryActivityRoute() {
-    const {
-        transactions,
-        transactionCount,
-        users,
-        offset,
-        pendingTx,
-        transactionDetails,
-    } = useLoaderData<typeof loader>();
+    const { transactions, transactionCount, users, offset, pendingTx } =
+        useLoaderData<typeof loader>();
 
-    useEffect(() => {
-        console.log({ transactions });
-    }, [transactions]);
     const [searchParams] = useSearchParams();
-    const params = useParams();
     const nav = useNavigation();
 
     const finalPage = Math.ceil(transactionCount / PER_PAGE);
@@ -247,15 +131,6 @@ export default function InventoryActivityRoute() {
 
     return (
         <section>
-            {/* {transactionDetails && (
-                <ShowDetails
-                    data={{
-                        ...transactionDetails,
-                        created_at: new Date(transactionDetails.created_at),
-                        
-                    }}
-                />
-            )} */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                 <div className="basis-1/3">
                     <h2 className="theme-text-h3">Browse transactions</h2>
@@ -350,7 +225,6 @@ export default function InventoryActivityRoute() {
                         return (
                             <TransactionTableRow
                                 key={item.id}
-                                isSelected={transactionDetails?.id === item.id}
                                 item={{
                                     ...item,
                                     created_at: new Date(item.created_at),
@@ -405,9 +279,6 @@ export default function InventoryActivityRoute() {
                             return (
                                 <TransactionTableRow
                                     key={item.id}
-                                    isSelected={
-                                        transactionDetails?.id === item.id
-                                    }
                                     item={{
                                         ...item,
                                         created_at: new Date(item.created_at),
@@ -424,5 +295,21 @@ export default function InventoryActivityRoute() {
                 </table>
             </div>
         </section>
+    );
+}
+
+export function ErrorBoundary() {
+    const error = useRouteError();
+
+    if (isRouteErrorResponse(error)) {
+        return <ErrorResponseMessage error={error} />;
+    }
+
+    let errorMessage = "Couldn't load the activity component";
+
+    return (
+        <div className="m-4">
+            <UnknownErrorMessage message={errorMessage} />
+        </div>
     );
 }

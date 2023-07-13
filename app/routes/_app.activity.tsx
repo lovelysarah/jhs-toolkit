@@ -5,9 +5,11 @@ import { useEffect, useState } from "react";
 import {
     Form,
     Link,
+    Outlet,
     isRouteErrorResponse,
     useLoaderData,
     useNavigation,
+    useParams,
     useRouteError,
     useSearchParams,
 } from "@remix-run/react";
@@ -27,7 +29,7 @@ import {
 } from "~/components/ErrorMessage";
 
 import type { UsersWithATransaction } from "~/data/user";
-import type { LoaderArgs } from "@remix-run/node";
+import type { LoaderArgs, SerializeFrom } from "@remix-run/node";
 import type { Prisma } from "@prisma/client";
 import type {
     MultipleTransactions,
@@ -107,11 +109,72 @@ export const loader = async ({ request }: LoaderArgs) => {
     return json(data);
 };
 
+const TransactionTable = ({
+    txs,
+    largeHeaders,
+    smallHeaders,
+}: {
+    txs: SerializeFrom<MultipleTransactions>;
+    largeHeaders: string[];
+    smallHeaders: string[];
+}) => {
+    const params = useParams();
+    const [searchParams] = useSearchParams();
+    return (
+        <table className="table w-full z-10 table-compact my-8">
+            {/* head */}
+            <thead className="hidden sm:table-header-group">
+                <tr>
+                    {largeHeaders.map((th) => (
+                        <th
+                            className="bg-base-100"
+                            key={th}>
+                            {th}
+                        </th>
+                    ))}
+                </tr>
+            </thead>
+            <thead className="table-header-group sm:hidden">
+                <tr>
+                    {smallHeaders.map((th) => (
+                        <th
+                            className="bg-base-100"
+                            key={th}>
+                            {th}
+                        </th>
+                    ))}
+                </tr>
+            </thead>
+            <tbody>
+                {txs.map((item) => {
+                    return (
+                        <TransactionTableRow
+                            key={item.id}
+                            showDetailBtn={params.id !== item.id}
+                            item={{
+                                ...item,
+                                created_at: new Date(item.created_at),
+                                resolved_at: item.resolved_at
+                                    ? new Date(item.resolved_at)
+                                    : null,
+                            }}
+                            detailsLink={`/activity/${
+                                item.id
+                            }?${searchParams.toString()}`}
+                        />
+                    );
+                })}
+            </tbody>
+        </table>
+    );
+};
+
 export default function InventoryActivityRoute() {
     const { transactions, transactionCount, users, offset, pendingTx } =
         useLoaderData<typeof loader>();
 
     const [searchParams] = useSearchParams();
+    const params = useParams();
     const nav = useNavigation();
 
     const finalPage = Math.ceil(transactionCount / PER_PAGE);
@@ -119,18 +182,22 @@ export default function InventoryActivityRoute() {
     const [nameFilter, setNameFilter] = useState(false);
     const [nameFilterSelected, setNameFilterSelected] = useState("DEFAULT");
 
+    const baseRoute = `/activity${params.id ? `/${params.id}` : ""}`;
+
     useEffect(() => {
         setNameFilterSelected(searchParams.get("filter-by-user") || "DEFAULT");
         setNameFilter(Boolean(searchParams.get("filter-by-user")));
     }, [searchParams]);
-
-    const detailsLink = new URLSearchParams(searchParams);
 
     const largeList = ["Date", "Summary"];
     const smallList = ["Name", "Details"];
 
     return (
         <section>
+            <div className="mt-4 mb-16">
+                <Outlet />
+            </div>
+
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                 <div className="basis-1/3">
                     <h2 className="theme-text-h3">Browse transactions</h2>
@@ -145,7 +212,9 @@ export default function InventoryActivityRoute() {
                               )} out of ${transactionCount}`}
                     </span>
                 </div>
-                <Form className="basis-2/3 flex gap-2 items-center sm:justify-end my-2">
+                <Form
+                    className="basis-2/3 flex gap-2 items-center sm:justify-end my-2"
+                    action={baseRoute}>
                     <select
                         className="select max-w-xs"
                         name="filter-by-user"
@@ -173,7 +242,7 @@ export default function InventoryActivityRoute() {
                                 setNameFilterSelected("DEFAULT");
                                 setNameFilter(false);
                             }}
-                            to={`/activity`}
+                            to={baseRoute}
                             className="btn btn-error">
                             <X />
                         </Link>
@@ -195,50 +264,11 @@ export default function InventoryActivityRoute() {
                     </button>
                 </Form>
             </div>
-            <table className="table w-full z-10 table-compact my-8">
-                {/* head */}
-                <thead className="hidden sm:table-header-group">
-                    <tr>
-                        {largeList.map((th) => (
-                            <th
-                                className="bg-base-100"
-                                key={th}>
-                                {th}
-                            </th>
-                        ))}
-                    </tr>
-                </thead>
-                <thead className="table-header-group sm:hidden">
-                    <tr>
-                        {smallList.map((th) => (
-                            <th
-                                className="bg-base-100"
-                                key={th}>
-                                {th}
-                            </th>
-                        ))}
-                    </tr>
-                </thead>
-                <tbody>
-                    {transactions.map((item) => {
-                        detailsLink.set("transaction", item.id);
-                        return (
-                            <TransactionTableRow
-                                key={item.id}
-                                item={{
-                                    ...item,
-                                    created_at: new Date(item.created_at),
-                                    resolved_at: item.resolved_at
-                                        ? new Date(item.resolved_at)
-                                        : null,
-                                }}
-                                detailsLink={detailsLink.toString()}
-                            />
-                        );
-                    })}
-                    {/* row 2 */}
-                </tbody>
-            </table>
+            <TransactionTable
+                txs={transactions}
+                largeHeaders={largeList}
+                smallHeaders={smallList}
+            />
             {finalPage > 1 && (
                 <Pagination
                     totalPages={finalPage}
@@ -249,50 +279,11 @@ export default function InventoryActivityRoute() {
             <div className="divider"></div>
             <div>
                 <h3 className="theme-text-h3">Pending transactions</h3>
-                <table className="table w-full z-10 table-compact my-8">
-                    {/* head */}
-                    <thead className="hidden sm:table-header-group">
-                        <tr>
-                            {largeList.map((th) => (
-                                <th
-                                    className="bg-base-100"
-                                    key={th}>
-                                    {th}
-                                </th>
-                            ))}
-                        </tr>
-                    </thead>
-                    <thead className="table-header-group sm:hidden">
-                        <tr>
-                            {smallList.map((th) => (
-                                <th
-                                    className="bg-base-100"
-                                    key={th}>
-                                    {th}
-                                </th>
-                            ))}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {pendingTx.map((item) => {
-                            detailsLink.set("transaction", item.id);
-                            return (
-                                <TransactionTableRow
-                                    key={item.id}
-                                    item={{
-                                        ...item,
-                                        created_at: new Date(item.created_at),
-                                        resolved_at: item.resolved_at
-                                            ? new Date(item.resolved_at)
-                                            : null,
-                                    }}
-                                    detailsLink={detailsLink.toString()}
-                                />
-                            );
-                        })}
-                        {/* row 2 */}
-                    </tbody>
-                </table>
+                <TransactionTable
+                    txs={pendingTx}
+                    largeHeaders={largeList}
+                    smallHeaders={smallList}
+                />
             </div>
         </section>
     );

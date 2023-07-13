@@ -2,7 +2,7 @@ import type { LoaderArgs, SerializeFrom } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { Link, Outlet, useLoaderData, useNavigation } from "@remix-run/react";
 import { getAllUsers } from "~/data/user";
-import { Edit, Loader2, Package } from "lucide-react";
+import { AlertTriangle, Edit, Loader2, Package } from "lucide-react";
 import { useState } from "react";
 import { db } from "~/utils/db.server";
 
@@ -46,7 +46,6 @@ export const loader = async ({ request }: LoaderArgs) => {
         locations: locations,
     };
 
-    console.log({ items: locations[0].items });
     return json(data);
 };
 
@@ -162,7 +161,12 @@ export default function AdminManageShedRoute() {
                         </tbody>
                     </table>
                 ) : (
-                    <h3 className="theme-text-h3">No locations to display</h3>
+                    <div className="alert alert-warning">
+                        <div>
+                            <AlertTriangle />
+                            <span>No inventories</span>
+                        </div>
+                    </div>
                 )}
             </div>
             <div className="top-0 py-4 sticky basis-full md:basis-2/5 bg-base-100 z-20 md:z-0 w-full border-b-2 border-base-300 md:border-b-0">

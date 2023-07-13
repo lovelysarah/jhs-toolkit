@@ -70,6 +70,17 @@ export const action: ActionFunction = async ({ request }) => {
 
     if (!inventoryId) return failure("Bad request", 400);
 
+    // Verify that the inventory is modifiable
+    const inventory = await db.inventoryLocation.findFirst({
+        where: {
+            short_id: inventoryId,
+        },
+        select: { deleted_at: true },
+    });
+
+    if (inventory && inventory.deleted_at)
+        return failure("Inventory is archived.", 401);
+
     const cart = await getOrCreateCart(userId, inventoryId);
 
     if (cart instanceof Error) return failure(cart.message, 500);

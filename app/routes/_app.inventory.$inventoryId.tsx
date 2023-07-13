@@ -6,6 +6,7 @@ import {
     LayoutDashboard,
     StickyNote,
     History,
+    AlertTriangle,
 } from "lucide-react";
 import { json } from "@remix-run/node";
 import {
@@ -34,7 +35,6 @@ import type { PropsWithChildren } from "react";
 import { useMemo } from "react";
 import type { Unpacked } from "~/types/utils";
 import { getAction } from "~/utils/txText";
-import { isTxItem } from "~/types/tx";
 
 import { FEATURE_FLAG } from "~/config";
 import {
@@ -90,6 +90,7 @@ export const loader = async ({ request, params }: LoaderArgs) => {
             name: true,
             items: { where: { deleted_at: { isSet: false } } },
             description: true,
+            deleted_at: true,
             _count: { select: { transactions: true } },
         },
     });
@@ -172,6 +173,13 @@ export default function ManageShedRoute() {
                                 ? `${link.text} (${cartCount})`
                                 : link.text;
 
+                        if (
+                            inventory.deleted_at &&
+                            (link.href === "/check-out" ||
+                                link.href === "/summary")
+                        )
+                            return null;
+
                         const DisplayCartCount = (): JSX.Element => {
                             return (
                                 <>
@@ -186,6 +194,7 @@ export default function ManageShedRoute() {
                         };
 
                         const linkTo = `/inventory/${params.inventoryId}${link.href}`;
+
                         const checkoutRoute =
                             linkTo ===
                             `/inventory/${params.inventoryId}/check-out`;
@@ -226,6 +235,19 @@ export default function ManageShedRoute() {
                     })}
                 </nav>
             </div>
+            {inventory.deleted_at && (
+                <div className="alert alert-warning my-4">
+                    <div>
+                        <AlertTriangle />
+                        <span>
+                            This inventory was archived on{" "}
+                            {new Date(
+                                inventory.deleted_at
+                            ).toLocaleDateString()}
+                        </span>
+                    </div>
+                </div>
+            )}
             {inventory.description && (
                 <div className="alert my-4">
                     <div>
@@ -297,7 +319,6 @@ const TransactionDetails = ({
                 {children}
                 <div>
                     {tx.items.map((item) => {
-                        if (!isTxItem(item)) return null;
                         return (
                             <span
                                 key={item.id}

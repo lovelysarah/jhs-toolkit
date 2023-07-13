@@ -50,6 +50,19 @@ export const loader = async ({ request, params }: LoaderArgs) => {
 
     invariant(inventoryId, "Inventory ID is required");
 
+    const inventory = await db.inventoryLocation.findFirst({
+        where: {
+            short_id: inventoryId,
+        },
+        select: { deleted_at: true },
+    });
+
+    if (inventory && inventory.deleted_at)
+        throw new Response(
+            `This inventory was archived on ${inventory.deleted_at.toLocaleDateString()}.`,
+            { status: 401 }
+        );
+
     const processed = await calculateInventoryAndCartQuantities(
         inventoryId,
         userId

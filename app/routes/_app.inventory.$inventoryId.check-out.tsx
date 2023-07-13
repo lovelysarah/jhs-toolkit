@@ -58,6 +58,19 @@ export const loader = async ({ request, params }: LoaderArgs) => {
     invariant(userId, "Was expecting userId");
     invariant(inventoryId, "Was expecting inventoryId");
 
+    const inventory = await db.inventoryLocation.findFirst({
+        where: {
+            short_id: inventoryId,
+        },
+        select: { deleted_at: true },
+    });
+
+    if (inventory && inventory.deleted_at)
+        throw new Response(
+            `This inventory was archived on ${inventory.deleted_at.toLocaleDateString()}.`,
+            { status: 401 }
+        );
+
     const inventoryData = await calculateInventoryAndCartQuantities(
         inventoryId,
         userId
@@ -89,8 +102,17 @@ export const action: ActionFunction = async ({
 
     const inventory = await db.inventoryLocation.findUniqueOrThrow({
         where: { short_id: inventoryId },
-        select: { id: true, name: true },
+        select: { id: true, name: true, deleted_at: true },
     });
+
+    if (inventory.deleted_at)
+        return badRequest<TxActionData>({
+            type: CREATE_TX_STATUS.FAILURE,
+            formError: "This inventory was archived.",
+            fieldErrors: null,
+            fields: null,
+            message: "This inventory was archived.",
+        });
 
     const form = await request.formData();
 

@@ -1,5 +1,4 @@
 import type { Prisma } from "@prisma/client";
-import { isTxItem } from "~/types/tx";
 import { db } from "~/utils/db.server";
 
 // Returns details about a specific transaction
@@ -55,8 +54,6 @@ export const resolveTransactions = async (ids: string[]) => {
     return await db.$transaction(async (tx) => {
         for (const { items } of txs) {
             for (const item of items) {
-                if (!isTxItem(item)) throw new Error("Invalid item type");
-
                 await tx.item.update({
                     where: { id: item.id },
                     data: {

@@ -33,7 +33,6 @@ import type {
     TypedResponse,
 } from "@remix-run/node";
 import { Check, MapPin } from "lucide-react";
-import { isTxItem } from "~/types/tx";
 import { validateNote } from "~/helper/TransactionFormValidators";
 import { resolveTransactions } from "~/data/transaction";
 import { RESOLVE_TX_STATUS } from "~/types/inventory";
@@ -284,19 +283,15 @@ export default function InventoryCheckInRoute() {
                                         </div>
                                         <div className="justify-between flex gap-2 items-center">
                                             <ul>
-                                                {tx.items.map(
-                                                    (item: unknown) => {
-                                                        if (!isTxItem(item))
-                                                            return null;
-                                                        return (
-                                                            <li
-                                                                key={`tx-${tx.id}-${item.name}`}>
-                                                                {item.quantity}{" "}
-                                                                {item.name}
-                                                            </li>
-                                                        );
-                                                    }
-                                                )}
+                                                {tx.items.map((item) => {
+                                                    return (
+                                                        <li
+                                                            key={`tx-${tx.id}-${item.name}`}>
+                                                            {item.quantity}{" "}
+                                                            {item.name}
+                                                        </li>
+                                                    );
+                                                })}
                                             </ul>
                                             <span className="opacity-60 self-start">
                                                 {timeAgo}

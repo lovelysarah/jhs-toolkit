@@ -79,11 +79,12 @@ const createTransaction = async ({
 
             by_guest: user.account_type === "GUEST",
             item_count: itemCount,
+
             items: items.map(({ quantity, item }) => ({
                 name: item.name,
                 quantity,
                 id: item.id,
-            })) as Prisma.JsonArray,
+            })),
 
             inventory: {
                 connect: { id: inventory.id },

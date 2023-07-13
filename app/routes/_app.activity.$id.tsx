@@ -18,7 +18,6 @@ import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { CHECKOUT_TYPE } from "~/types/inventory";
 import clsx from "clsx";
-import { isTxItem } from "~/types/tx";
 import { useMemo } from "react";
 import { Check, Clock, LinkIcon } from "lucide-react";
 import { getAction } from "~/utils/txText";
@@ -154,9 +153,7 @@ export default function TxOverviewRoute() {
 
     const [searchParams] = useSearchParams();
     const sortedItems = useMemo(() => {
-        return tx.items.sort((a, b) =>
-            isTxItem(a) && isTxItem(b) && a.name > b.name ? 1 : -1
-        );
+        return tx.items.sort((a, b) => (a.name > b.name ? 1 : -1));
     }, [tx.items]);
 
     return (
@@ -179,16 +176,7 @@ export default function TxOverviewRoute() {
                             {tx.item_count > 1 ? "s" : ""}
                         </h3>
                         <ul className="flex gap-2 flex-wrap my-4">
-                            {sortedItems.map((item, index) => {
-                                if (!isTxItem(item))
-                                    return (
-                                        <span
-                                            key={index}
-                                            className="btn btn-error">
-                                            Corrupted!
-                                        </span>
-                                    );
-
+                            {sortedItems.map((item) => {
                                 return (
                                     <li key={item.id}>
                                         <Link

@@ -1,6 +1,6 @@
 import { Link } from "@remix-run/react";
 import clsx from "clsx";
-import { Check, Clock } from "lucide-react";
+import { Check, Clock, Eye } from "lucide-react";
 import type { MultipleTransactions } from "~/data/transaction";
 import type { Unpacked } from "~/types/utils";
 
@@ -12,11 +12,13 @@ dayjs.extend(relativeTime);
 export type TransactionInfoTextProps = {
     item: Unpacked<MultipleTransactions>;
     detailsLink: string;
+    showDetailBtn: boolean;
 };
 
 export const TransactionTableRow = ({
     item,
     detailsLink,
+    showDetailBtn,
 }: TransactionInfoTextProps) => {
     return (
         <>
@@ -29,11 +31,15 @@ export const TransactionTableRow = ({
                     id={item.id}>
                     <div>
                         <span className="mr-2">
-                            {item.checkout_type === "TEMPORARY" &&
-                            item.status === "PENDING" ? (
-                                <Clock className="inline" />
+                            {showDetailBtn ? (
+                                item.checkout_type === "TEMPORARY" &&
+                                item.status === "PENDING" ? (
+                                    <Clock className="inline" />
+                                ) : (
+                                    <Check className="inline" />
+                                )
                             ) : (
-                                <Check className="inline" />
+                                <Eye className="inline" />
                             )}
                         </span>
                         <span className="font-bold">
@@ -64,11 +70,19 @@ export const TransactionTableRow = ({
                     </div>
                 </td>
                 <td>
-                    <Link
-                        to={`?${detailsLink}`}
-                        className="btn btn-ghost btn-sm self-end">
-                        View details
-                    </Link>
+                    {showDetailBtn ? (
+                        <Link
+                            to={`${detailsLink}`}
+                            className="btn btn-ghost btn-sm self-end">
+                            View details
+                        </Link>
+                    ) : (
+                        <button
+                            disabled
+                            className="btn-sm self-end btn btn-ghost">
+                            View details
+                        </button>
+                    )}
                 </td>
             </tr>
             <tr className="hidden sm:table-row md:hidden">

@@ -80,11 +80,17 @@ enum InventoryActionType {
   CHECK_OUT
 }
 
+type TransactionItem {
+  id String
+  name String
+  quantity Int
+}
+
 model Transaction {
   id String @id @default(auto()) @map("_id") @db.ObjectId
   link_id String
    
-  items Json[]
+  items TransactionItem[]
   item_count Int
 
 
